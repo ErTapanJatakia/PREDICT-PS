@@ -149,7 +149,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab }) => 
                   <div>
                     {isCompleted ? (
                       <span className="inline-flex items-center gap-1 text-xs font-mono font-medium px-2.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700">
-                        <CheckCircle2 className="w-3 h-3" /> Completed in Phase 1
+                        <CheckCircle2 className="w-3 h-3" /> Completed
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs font-mono font-medium px-2.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
@@ -204,12 +204,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab }) => 
           </div>
 
           <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-lg space-y-1.5">
-            <span className="font-semibold text-amber-400 flex items-center gap-1.5">
-              <Fingerprint className="w-3.5 h-3.5" /> Zero Password Ingestion in Phase 1
+            <span className="font-semibold text-emerald-400 flex items-center gap-1.5">
+              <Fingerprint className="w-3.5 h-3.5" /> Volatile In-Memory Local Processing
             </span>
             <p className="text-slate-400">
-              To guarantee zero leak surface in this foundation phase, no interactive password input fields are exposed.
-              All planned generators and analyzers are detailed structurally before any active string handling begins.
+              In Phase 2, generation and pattern analysis execute 100% in volatile browser memory. Zero persistence (no localStorage/sessionStorage/cookies), zero network egress, and explicit advisory to test only research candidates rather than real account passwords.
             </p>
           </div>
 

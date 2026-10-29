@@ -44,8 +44,8 @@ const TABS: TabItem[] = [
   {
     id: 'password-lab',
     label: 'Password Lab',
-    badge: 'Phase 2 Plan',
-    badgeColor: 'text-amber-300 bg-amber-950/70 border-amber-800/80',
+    badge: 'Phase 2 Active',
+    badgeColor: 'text-emerald-300 bg-emerald-950/70 border-emerald-800/80',
     icon: KeyRound,
   },
   {

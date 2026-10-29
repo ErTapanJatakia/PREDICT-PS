@@ -81,7 +81,7 @@ export const AuditManifestView: React.FC = () => {
     application: 'PREDICT-PS',
     subtitle: 'Password Predictability Research Workbench',
     version: '0.1.0-alpha',
-    phase: 'Phase 1: Secure Application Foundation',
+    phase: 'Phase 2: Local CSPRNG Generation & Explainable Pattern Extraction',
     timestamp: new Date().toISOString(),
     hypothesis:
       'Explainable password-pattern features fused with a conventional character-level machine-learning model can improve identification of guessable human-selected passwords compared with simple rules, zxcvbn, and a character n-gram ML baseline, while preserving password privacy and acceptable computational cost.',
@@ -91,7 +91,7 @@ export const AuditManifestView: React.FC = () => {
       'Zero storage persistence (0 bytes localStorage/sessionStorage/cookies)',
       'Zero credential logging or console streaming',
       'Browser-local Web Crypto CSPRNG rejection-sampling generation only',
-      'No password input fields permitted in Phase 1',
+      'Opt-in local volatile memory analysis for test candidates only (zero storage, explicit unmount cleanup)',
     ],
     plannedBaselines: getBaselineSpecs(),
     evaluationMetrics: getEvaluationMetricSpecs(),

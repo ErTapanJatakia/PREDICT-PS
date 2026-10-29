@@ -74,3 +74,73 @@ export interface CalculatedMetrics {
   falseStrongRate: number; // Critical security metric: guessable classified as strong
   falseWeakRate: number;
 }
+
+export interface CharsetOptions {
+  lowercase: boolean;
+  uppercase: boolean;
+  digits: boolean;
+  symbols: boolean;
+}
+
+export interface GeneratorConfig {
+  length: number;
+  charsets: CharsetOptions;
+}
+
+export interface GeneratorResult {
+  password: string;
+  length: number;
+  charset: string;
+  charsetSize: number;
+  theoreticalEntropyBits: number;
+  entropyPerChar: number;
+  maxValidByte: number;
+  discardedByteCount: number;
+  rejectionProbability: number;
+}
+
+export interface PatternClassComposition {
+  lowercase: number;
+  uppercase: number;
+  digits: number;
+  symbols: number;
+  whitespace: number;
+  other: number;
+}
+
+export interface RepeatedRun {
+  char: string;
+  count: number;
+  startIndex: number;
+}
+
+export interface RepeatedSubstring {
+  substring: string;
+  occurrences: number;
+}
+
+export interface SequentialRun {
+  sequence: string;
+  type: 'alphabetic' | 'numeric';
+  direction: 'ascending' | 'descending';
+  startIndex: number;
+}
+
+export interface KeyboardWalk {
+  pattern: string;
+  rowName: string;
+  direction: 'horizontal' | 'reverse' | 'vertical';
+  startIndex: number;
+}
+
+export interface ExplainablePatternReport {
+  candidateLength: number;
+  composition: PatternClassComposition;
+  uniqueCharCount: number;
+  repeatedRuns: RepeatedRun[];
+  repeatedSubstrings: RepeatedSubstring[];
+  sequentialRuns: SequentialRun[];
+  keyboardWalks: KeyboardWalk[];
+  structuralObservations: string[];
+}
+

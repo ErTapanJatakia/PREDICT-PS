@@ -21,9 +21,9 @@ export const Header: React.FC = () => {
             <strong>RESEARCH PROTOTYPE:</strong> Not a security certification. Academic study in progress investigating password predictability hypotheses.
           </span>
         </div>
-        <div className="hidden sm:flex items-center gap-2 text-xs text-amber-300/80 bg-amber-900/50 px-2 py-0.5 rounded border border-amber-700/50">
-          <Lock className="w-3 h-3 text-amber-400" aria-hidden="true" />
-          <span>Phase 1: Architecture Only</span>
+        <div className="hidden sm:flex items-center gap-2 text-xs text-emerald-300/90 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/80">
+          <Lock className="w-3 h-3 text-emerald-400" aria-hidden="true" />
+          <span>Phase 2: Local CSPRNG &amp; Patterns</span>
         </div>
       </div>
 
