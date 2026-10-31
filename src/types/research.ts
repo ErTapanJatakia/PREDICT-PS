@@ -253,5 +253,153 @@ export interface Phase4Artifact {
   limitations_and_caveats: string[];
 }
 
+export interface MetricConfidenceInterval {
+  lower_95: number;
+  upper_95: number;
+  mean: number;
+}
 
+export interface CalibrationBin {
+  bin_index: number;
+  range: [number, number];
+  count: number;
+  confidence: number;
+  empirical_accuracy: number;
+}
 
+export interface CalibrationDiagnostics {
+  n_bins: number;
+  expected_calibration_error: number;
+  bins: CalibrationBin[];
+  calibration_caveat: string;
+}
+
+export interface Phase41Metrics extends Phase4Metrics {
+  balanced_accuracy?: number;
+  specificity?: number;
+  negative_predictive_value?: number;
+  matthews_correlation_coefficient?: number;
+  support?: {
+    positive_class: number;
+    negative_class: number;
+  };
+  predicted_positive_rate?: number;
+  confidence_intervals_95?: {
+    accuracy: MetricConfidenceInterval;
+    precision: MetricConfidenceInterval;
+    recall: MetricConfidenceInterval;
+    macro_f1: MetricConfidenceInterval;
+    false_strong_rate: MetricConfidenceInterval;
+    pr_auc: MetricConfidenceInterval;
+    roc_auc: MetricConfidenceInterval;
+    methodology: {
+      technique: string;
+      resamples: number;
+      seed: number;
+      note: string;
+    };
+  };
+  calibration?: CalibrationDiagnostics;
+}
+
+export interface LengthStats {
+  min: number;
+  max: number;
+  mean: number;
+  median: number;
+  stdev: number;
+}
+
+export interface Phase41DatasetDiagnostics {
+  sample_count: number;
+  class_distribution: {
+    positive_count: number;
+    negative_count: number;
+    positive_ratio: number;
+  };
+  length_statistics: {
+    overall: LengthStats;
+    positive_class: LengthStats;
+    negative_class: LengthStats;
+    length_discrepancy_delta: number;
+  };
+  character_statistics: {
+    mean_unique_chars_per_sample: number;
+    total_distinct_alphabet_size: number;
+    aggregate_composition: Record<string, number>;
+    repeated_run_occurrences: number;
+  };
+  pattern_family_distribution: Record<string, number>;
+  duplicate_detection: {
+    exact_duplicates: number;
+    case_normalized_duplicates: number;
+    whitespace_normalized_duplicates: number;
+  };
+}
+
+export interface Phase41IsolationAudit {
+  isolation_verified: boolean;
+  exact_cross_split_duplicates: {
+    train_val: number;
+    train_test: number;
+    val_test: number;
+  };
+  case_normalized_cross_split_duplicates: {
+    train_val: number;
+    train_test: number;
+    val_test: number;
+  };
+  near_duplicate_sample_matches: number;
+  pattern_family_analysis: {
+    train_families: string[];
+    test_families: string[];
+    shared_families: string[];
+    methodological_implication: string;
+  };
+  leakage_safeguards_summary: string[];
+}
+
+export interface Phase41ExperimentResult {
+  experiment_id: string;
+  title: string;
+  status: 'executed_successfully' | 'pipeline_validation' | 'failed' | 'not_run';
+  description: string;
+  threshold: number;
+  metrics: Phase41Metrics;
+  vocabulary_size?: number;
+  training_time_ms?: number;
+  inference_latency_us?: number;
+  length_discrepancy_delta?: number;
+  evaluation_partition?: string;
+  transfer_finding?: string;
+}
+
+export interface Phase41Manifest {
+  schema_version: 'predict_ps_phase4_1_v1';
+  manifest_type: string;
+  timestamp_utc: string;
+  environment: {
+    python_version: string;
+    platform: string;
+    scikit_learn_version: string;
+    numpy_version: string;
+    scipy_version: string;
+  };
+  dataset_diagnostics: {
+    original_dataset: Phase41DatasetDiagnostics;
+    length_controlled_dataset: Phase41DatasetDiagnostics;
+    charset_controlled_dataset: Phase41DatasetDiagnostics;
+    independent_holdout_dataset: Phase41DatasetDiagnostics;
+    partition_isolation_audit: Phase41IsolationAudit;
+  };
+  experiments: {
+    exp1_original_baseline: Phase41ExperimentResult;
+    exp2_length_controlled: Phase41ExperimentResult;
+    exp3_charset_controlled: Phase41ExperimentResult;
+    exp4_independent_holdout: Phase41ExperimentResult;
+    exp5_length_only_diagnostic: Phase41ExperimentResult;
+    exp6_composition_only_diagnostic: Phase41ExperimentResult;
+  };
+  methodological_conclusions: string[];
+  limitations: string[];
+}

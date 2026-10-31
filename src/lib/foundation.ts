@@ -1060,8 +1060,13 @@ export function validatePhase4ArtifactSchema(data: unknown): { valid: boolean; e
 
   const obj = data as Record<string, unknown>;
 
+  // Accept predict_ps_phase4_v1 or Phase 4.1 manifest schemas
+  if (obj.schema_version === 'predict_ps_phase4_1_v1') {
+    return validatePhase41ManifestSchema(data);
+  }
+
   if (obj.schema_version !== 'predict_ps_phase4_v1') {
-    errors.push('Invalid or missing schema_version (expected "predict_ps_phase4_v1").');
+    errors.push('Invalid or missing schema_version (expected "predict_ps_phase4_v1" or "predict_ps_phase4_1_v1").');
   }
 
   const allowedStatuses = ['not_trained', 'synthetic_pipeline_validation', 'approved_research_evaluation'];
@@ -1087,7 +1092,7 @@ export function validatePhase4ArtifactSchema(data: unknown): { valid: boolean; e
   }
 
   // Security Invariant: Refuse any artifact containing raw candidate arrays or password text
-  const prohibitedKeys = ['candidates', 'passwords', 'raw_passwords', 'password_list', 'credentials'];
+  const prohibitedKeys = ['candidates', 'passwords', 'raw_passwords', 'password_list', 'credentials', 'plain_passwords'];
   for (const key of prohibitedKeys) {
     if (key in obj) {
       errors.push(`Privacy violation: Prohibited key "${key}" detected in artifact.`);
@@ -1097,6 +1102,99 @@ export function validatePhase4ArtifactSchema(data: unknown): { valid: boolean; e
   return {
     valid: errors.length === 0,
     errors,
+  };
+}
+
+/**
+ * Validates Phase 4.1 multi-experiment research integrity manifest.
+ */
+export function validatePhase41ManifestSchema(data: unknown): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  if (!data || typeof data !== 'object') {
+    return { valid: false, errors: ['Manifest must be a non-null JSON object.'] };
+  }
+
+  const obj = data as Record<string, unknown>;
+
+  if (obj.schema_version !== 'predict_ps_phase4_1_v1') {
+    errors.push('Invalid or missing schema_version (expected "predict_ps_phase4_1_v1").');
+  }
+
+  if (!obj.environment || typeof obj.environment !== 'object') {
+    errors.push('Missing or invalid environment object.');
+  }
+
+  if (!obj.dataset_diagnostics || typeof obj.dataset_diagnostics !== 'object') {
+    errors.push('Missing or invalid dataset_diagnostics object.');
+  }
+
+  if (!obj.experiments || typeof obj.experiments !== 'object') {
+    errors.push('Missing or invalid experiments object.');
+  } else {
+    const exps = obj.experiments as Record<string, unknown>;
+    const requiredExps = [
+      'exp1_original_baseline',
+      'exp2_length_controlled',
+      'exp3_charset_controlled',
+      'exp4_independent_holdout',
+      'exp5_length_only_diagnostic',
+      'exp6_composition_only_diagnostic'
+    ];
+    for (const expKey of requiredExps) {
+      if (!exps[expKey] || typeof exps[expKey] !== 'object') {
+        errors.push(`Missing experiment "${expKey}" in experiments manifest.`);
+      }
+    }
+  }
+
+  // Security Invariant: Strict raw password prohibition
+  const prohibitedKeys = ['candidates', 'passwords', 'raw_passwords', 'password_list', 'credentials'];
+  for (const key of prohibitedKeys) {
+    if (key in obj) {
+      errors.push(`Privacy violation: Prohibited key "${key}" detected in manifest.`);
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Computes extended cybersecurity metrics from confusion matrix values.
+ */
+export function calculateExtendedMetrics(
+  truePositives: number,
+  falsePositives: number,
+  trueNegatives: number,
+  falseNegatives: number
+): {
+  balancedAccuracy: number;
+  specificity: number;
+  negativePredictiveValue: number;
+  matthewsCorrelationCoefficient: number;
+} {
+  const tp = truePositives;
+  const fp = falsePositives;
+  const tn = trueNegatives;
+  const fn = falseNegatives;
+
+  const recall = (tp + fn) > 0 ? tp / (tp + fn) : 0;
+  const specificity = (tn + fp) > 0 ? tn / (tn + fp) : 0;
+  const balancedAccuracy = (recall + specificity) / 2;
+  const negativePredictiveValue = (tn + fn) > 0 ? tn / (tn + fn) : 0;
+
+  const numerator = (tp * tn) - (fp * fn);
+  const denominator = Math.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn));
+  const matthewsCorrelationCoefficient = denominator > 0 ? numerator / denominator : 0;
+
+  return {
+    balancedAccuracy: Number(balancedAccuracy.toFixed(4)),
+    specificity: Number(specificity.toFixed(4)),
+    negativePredictiveValue: Number(negativePredictiveValue.toFixed(4)),
+    matthewsCorrelationCoefficient: Number(matthewsCorrelationCoefficient.toFixed(4)),
   };
 }
 

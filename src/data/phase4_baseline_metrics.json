@@ -1,7 +1,7 @@
 {
   "schema_version": "predict_ps_phase4_v1",
   "pipeline_status": "synthetic_pipeline_validation",
-  "timestamp_utc": "2026-10-31T03:45:50.333394+00:00",
+  "timestamp_utc": "2026-10-31T18:57:52.852321+00:00",
   "model_architecture": {
     "name": "Character n-gram TF-IDF + Logistic Regression",
     "type": "statistical-ml",
@@ -17,22 +17,22 @@
     "C": 1.0,
     "max_iter": 1000,
     "random_state": 42,
-    "vocabulary_size": 6660
+    "vocabulary_size": 4399
   },
   "dataset_provenance": {
     "source": "In-process synthetic pattern generator (PRNG seed 42)",
     "data_policy": "Zero leaked breach corpora, zero external downloads, zero credential dumps",
     "total_samples": 4000,
     "splits": {
-      "train_count": 2800,
-      "train_pos": 1400,
-      "train_neg": 1400,
-      "val_count": 600,
-      "val_pos": 300,
-      "val_neg": 300,
-      "test_count": 600,
-      "test_pos": 300,
-      "test_neg": 300
+      "train_count": 140,
+      "train_pos": 70,
+      "train_neg": 70,
+      "val_count": 30,
+      "val_pos": 15,
+      "val_neg": 15,
+      "test_count": 30,
+      "test_pos": 15,
+      "test_neg": 15
     },
     "positive_label_definition": "1 = Predictable structural template (dictionary affix, sequential run, keyboard walk, repeat token)",
     "negative_label_definition": "0 = High-entropy uniform random string across 4 disjoint character sets",
@@ -43,52 +43,143 @@
     ]
   },
   "evaluation_metrics": {
-    "threshold": 0.5,
+    "threshold": 0.48,
     "test_split": {
       "confusion_matrix": {
-        "true_positives": 300,
-        "false_positives": 0,
-        "true_negatives": 300,
-        "false_negatives": 0,
-        "total": 600
+        "true_positives": 14,
+        "false_positives": 3,
+        "true_negatives": 12,
+        "false_negatives": 1,
+        "total": 30
       },
-      "accuracy": 1.0,
-      "precision": 1.0,
-      "recall": 1.0,
-      "macro_f1": 1.0,
-      "roc_auc": 1.0,
-      "pr_auc": 1.0,
-      "brier_score": 0.0402,
-      "false_strong_rate": 0.0,
-      "false_weak_rate": 0.0
-    },
-    "val_split": {
-      "confusion_matrix": {
-        "true_positives": 300,
-        "false_positives": 0,
-        "true_negatives": 300,
-        "false_negatives": 0,
-        "total": 600
+      "accuracy": 0.8667,
+      "balanced_accuracy": 0.8667,
+      "precision": 0.8235,
+      "recall": 0.9333,
+      "specificity": 0.8,
+      "negative_predictive_value": 0.9231,
+      "macro_f1": 0.8661,
+      "matthews_correlation_coefficient": 0.7399,
+      "roc_auc": 0.9778,
+      "pr_auc": 0.9833,
+      "brier_score": 0.1813,
+      "false_strong_rate": 0.0667,
+      "false_weak_rate": 0.2,
+      "support": {
+        "positive_class": 15,
+        "negative_class": 15
       },
-      "accuracy": 1.0,
-      "precision": 1.0,
-      "recall": 1.0,
-      "macro_f1": 1.0,
-      "roc_auc": 1.0,
-      "pr_auc": 1.0,
-      "brier_score": 0.0365,
-      "false_strong_rate": 0.0,
-      "false_weak_rate": 0.0
+      "predicted_positive_rate": 0.5667,
+      "calibration": {
+        "n_bins": 5,
+        "expected_calibration_error": 0.2102,
+        "bins": [
+          {
+            "bin_index": 0,
+            "range": [
+              0.0,
+              0.2
+            ],
+            "count": 0,
+            "confidence": 0.1,
+            "empirical_accuracy": 0.0
+          },
+          {
+            "bin_index": 1,
+            "range": [
+              0.2,
+              0.4
+            ],
+            "count": 0,
+            "confidence": 0.3,
+            "empirical_accuracy": 0.0
+          },
+          {
+            "bin_index": 2,
+            "range": [
+              0.4,
+              0.6
+            ],
+            "count": 22,
+            "confidence": 0.485,
+            "empirical_accuracy": 0.3182
+          },
+          {
+            "bin_index": 3,
+            "range": [
+              0.6,
+              0.8
+            ],
+            "count": 8,
+            "confidence": 0.6704,
+            "empirical_accuracy": 1.0
+          },
+          {
+            "bin_index": 4,
+            "range": [
+              0.8,
+              1.0
+            ],
+            "count": 0,
+            "confidence": 0.9,
+            "empirical_accuracy": 0.0
+          }
+        ],
+        "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+      },
+      "confidence_intervals_95": {
+        "accuracy": {
+          "lower_95": 0.8,
+          "upper_95": 0.9842,
+          "mean": 0.91
+        },
+        "precision": {
+          "lower_95": 0.6736,
+          "upper_95": 1.0,
+          "mean": 0.8897
+        },
+        "recall": {
+          "lower_95": 0.8394,
+          "upper_95": 1.0,
+          "mean": 0.937
+        },
+        "macro_f1": {
+          "lower_95": 0.7902,
+          "upper_95": 0.9841,
+          "mean": 0.9065
+        },
+        "false_strong_rate": {
+          "lower_95": 0.0,
+          "upper_95": 0.1606,
+          "mean": 0.063
+        },
+        "pr_auc": {
+          "lower_95": 0.9421,
+          "upper_95": 1.0,
+          "mean": 0.9842
+        },
+        "roc_auc": {
+          "lower_95": 0.9308,
+          "upper_95": 1.0,
+          "mean": 0.9804
+        },
+        "methodology": {
+          "technique": "Non-parametric empirical percentile bootstrap",
+          "resamples": 20,
+          "seed": 42,
+          "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+        }
+      }
     }
   },
   "computational_profile": {
-    "train_duration_ms": 233.3,
-    "inference_latency_microseconds": 31.76,
+    "train_duration_ms": 20.15,
+    "inference_latency_microseconds": 54.0,
     "hardware_platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
-    "python_version": "3.11.2",
+    "python_version": "3.10.12",
     "dependencies": {
-      "scikit_learn": "1.2.1",
-      "numpy": "1.24.2"
+      "scikit_learn": "1.7.2",
+      "numpy": "2.2.6"
     }
   },
   "limitations_and_caveats": [

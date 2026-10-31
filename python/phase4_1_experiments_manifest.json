@@ -1,0 +1,1111 @@
+{
+  "schema_version": "predict_ps_phase4_1_v1",
+  "manifest_type": "research_integrity_baseline_validation",
+  "timestamp_utc": "2026-10-31T18:57:52.852321+00:00",
+  "environment": {
+    "python_version": "3.10.12",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+    "scikit_learn_version": "1.7.2",
+    "numpy_version": "2.2.6",
+    "scipy_version": "1.15.3"
+  },
+  "dataset_diagnostics": {
+    "original_dataset": {
+      "sample_count": 200,
+      "class_distribution": {
+        "positive_count": 100,
+        "negative_count": 100,
+        "positive_ratio": 0.5
+      },
+      "length_statistics": {
+        "overall": {
+          "min": 6,
+          "max": 20,
+          "mean": 12.77,
+          "median": 12.0,
+          "stdev": 4.06
+        },
+        "positive_class": {
+          "min": 6,
+          "max": 20,
+          "mean": 9.64,
+          "median": 9.5,
+          "stdev": 2.61
+        },
+        "negative_class": {
+          "min": 12,
+          "max": 20,
+          "mean": 15.89,
+          "median": 16.0,
+          "stdev": 2.58
+        },
+        "length_discrepancy_delta": 6.25
+      },
+      "character_statistics": {
+        "mean_unique_chars_per_sample": 10.74,
+        "total_distinct_alphabet_size": 90,
+        "aggregate_composition": {
+          "lowercase": 936,
+          "uppercase": 600,
+          "digits": 467,
+          "symbols": 550,
+          "whitespace": 0,
+          "other": 0
+        },
+        "repeated_run_occurrences": 11
+      },
+      "pattern_family_distribution": {
+        "high_entropy_uniform": 100,
+        "keyboard_walk": 28,
+        "sequential": 23,
+        "repeated_phrase": 22,
+        "dict_suffix": 27
+      },
+      "duplicate_detection": {
+        "exact_duplicates": 0,
+        "case_normalized_duplicates": 0,
+        "whitespace_normalized_duplicates": 0
+      }
+    },
+    "length_controlled_dataset": {
+      "sample_count": 200,
+      "class_distribution": {
+        "positive_count": 100,
+        "negative_count": 100,
+        "positive_ratio": 0.5
+      },
+      "length_statistics": {
+        "overall": {
+          "min": 12,
+          "max": 16,
+          "mean": 13.95,
+          "median": 14.0,
+          "stdev": 1.41
+        },
+        "positive_class": {
+          "min": 12,
+          "max": 16,
+          "mean": 14.07,
+          "median": 14.0,
+          "stdev": 1.43
+        },
+        "negative_class": {
+          "min": 12,
+          "max": 16,
+          "mean": 13.82,
+          "median": 14.0,
+          "stdev": 1.4
+        },
+        "length_discrepancy_delta": -0.25
+      },
+      "character_statistics": {
+        "mean_unique_chars_per_sample": 11.12,
+        "total_distinct_alphabet_size": 91,
+        "aggregate_composition": {
+          "lowercase": 1051,
+          "uppercase": 569,
+          "digits": 654,
+          "symbols": 515,
+          "whitespace": 0,
+          "other": 0
+        },
+        "repeated_run_occurrences": 0
+      },
+      "pattern_family_distribution": {
+        "uniform_length_controlled": 100,
+        "dict_length_controlled": 31,
+        "sequential_length_controlled": 21,
+        "keyboard_length_controlled": 25,
+        "repeat_length_controlled": 23
+      },
+      "duplicate_detection": {
+        "exact_duplicates": 0,
+        "case_normalized_duplicates": 0,
+        "whitespace_normalized_duplicates": 0
+      }
+    },
+    "charset_controlled_dataset": {
+      "sample_count": 200,
+      "class_distribution": {
+        "positive_count": 100,
+        "negative_count": 100,
+        "positive_ratio": 0.5
+      },
+      "length_statistics": {
+        "overall": {
+          "min": 8,
+          "max": 16,
+          "mean": 12.73,
+          "median": 13.0,
+          "stdev": 1.74
+        },
+        "positive_class": {
+          "min": 8,
+          "max": 14,
+          "mean": 11.49,
+          "median": 11.0,
+          "stdev": 1.11
+        },
+        "negative_class": {
+          "min": 12,
+          "max": 16,
+          "mean": 13.97,
+          "median": 14.0,
+          "stdev": 1.32
+        },
+        "length_discrepancy_delta": 2.48
+      },
+      "character_statistics": {
+        "mean_unique_chars_per_sample": 11.62,
+        "total_distinct_alphabet_size": 71,
+        "aggregate_composition": {
+          "lowercase": 1014,
+          "uppercase": 579,
+          "digits": 628,
+          "symbols": 325,
+          "whitespace": 0,
+          "other": 0
+        },
+        "repeated_run_occurrences": 0
+      },
+      "pattern_family_distribution": {
+        "charset_controlled_negative": 100,
+        "charset_controlled_positive": 100
+      },
+      "duplicate_detection": {
+        "exact_duplicates": 0,
+        "case_normalized_duplicates": 0,
+        "whitespace_normalized_duplicates": 0
+      }
+    },
+    "independent_holdout_dataset": {
+      "sample_count": 100,
+      "class_distribution": {
+        "positive_count": 50,
+        "negative_count": 50,
+        "positive_ratio": 0.5
+      },
+      "length_statistics": {
+        "overall": {
+          "min": 10,
+          "max": 18,
+          "mean": 12.94,
+          "median": 12.0,
+          "stdev": 2.21
+        },
+        "positive_class": {
+          "min": 11,
+          "max": 15,
+          "mean": 12.02,
+          "median": 11.5,
+          "stdev": 1.27
+        },
+        "negative_class": {
+          "min": 10,
+          "max": 18,
+          "mean": 13.86,
+          "median": 14.0,
+          "stdev": 2.56
+        },
+        "length_discrepancy_delta": 1.84
+      },
+      "character_statistics": {
+        "mean_unique_chars_per_sample": 11.18,
+        "total_distinct_alphabet_size": 78,
+        "aggregate_composition": {
+          "lowercase": 524,
+          "uppercase": 259,
+          "digits": 285,
+          "symbols": 226,
+          "whitespace": 0,
+          "other": 0
+        },
+        "repeated_run_occurrences": 0
+      },
+      "pattern_family_distribution": {
+        "independent_uniform_random": 50,
+        "reverse_encased_novel": 18,
+        "date_iso_novel": 10,
+        "zigzag_walk_novel": 12,
+        "pin_padded_name_novel": 10
+      },
+      "duplicate_detection": {
+        "exact_duplicates": 0,
+        "case_normalized_duplicates": 0,
+        "whitespace_normalized_duplicates": 0
+      }
+    },
+    "partition_isolation_audit": {
+      "isolation_verified": true,
+      "exact_cross_split_duplicates": {
+        "train_val": 0,
+        "train_test": 0,
+        "val_test": 0
+      },
+      "case_normalized_cross_split_duplicates": {
+        "train_val": 0,
+        "train_test": 0,
+        "val_test": 0
+      },
+      "near_duplicate_sample_matches": 1,
+      "pattern_family_analysis": {
+        "train_families": [
+          "dict_suffix",
+          "high_entropy_uniform",
+          "keyboard_walk",
+          "repeated_phrase",
+          "sequential"
+        ],
+        "test_families": [
+          "dict_suffix",
+          "high_entropy_uniform",
+          "keyboard_walk",
+          "repeated_phrase",
+          "sequential"
+        ],
+        "shared_families": [
+          "dict_suffix",
+          "high_entropy_uniform",
+          "keyboard_walk",
+          "repeated_phrase",
+          "sequential"
+        ],
+        "methodological_implication": "When train and test share pattern families (e.g., sequential runs, dictionary affixes), evaluation measures in-distribution template interpolation. Out-of-distribution transfer to unseen pattern families requires the separate independent-generator holdout experiment."
+      },
+      "leakage_safeguards_summary": [
+        "Exact duplicate leakage: 0 (verified)",
+        "Normalized duplicate leakage: 0 (verified)",
+        "Direct metadata / label leakage: Verified that pattern_types are never used as model inputs"
+      ]
+    }
+  },
+  "experiments": {
+    "exp1_original_baseline": {
+      "experiment_id": "exp1_original_ngram_baseline",
+      "title": "Experiment 1: Original Character n-gram Baseline",
+      "status": "executed_successfully",
+      "description": "Standard character-level TF-IDF n-grams (2-5) on original synthetic dataset distribution.",
+      "threshold": 0.48,
+      "metrics": {
+        "confusion_matrix": {
+          "true_positives": 14,
+          "false_positives": 3,
+          "true_negatives": 12,
+          "false_negatives": 1,
+          "total": 30
+        },
+        "accuracy": 0.8667,
+        "balanced_accuracy": 0.8667,
+        "precision": 0.8235,
+        "recall": 0.9333,
+        "specificity": 0.8,
+        "negative_predictive_value": 0.9231,
+        "macro_f1": 0.8661,
+        "matthews_correlation_coefficient": 0.7399,
+        "roc_auc": 0.9778,
+        "pr_auc": 0.9833,
+        "brier_score": 0.1813,
+        "false_strong_rate": 0.0667,
+        "false_weak_rate": 0.2,
+        "support": {
+          "positive_class": 15,
+          "negative_class": 15
+        },
+        "predicted_positive_rate": 0.5667,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.2102,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 0,
+              "confidence": 0.1,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 0,
+              "confidence": 0.3,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 22,
+              "confidence": 0.485,
+              "empirical_accuracy": 0.3182
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 8,
+              "confidence": 0.6704,
+              "empirical_accuracy": 1.0
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 0,
+              "confidence": 0.9,
+              "empirical_accuracy": 0.0
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 0.8,
+            "upper_95": 0.9842,
+            "mean": 0.91
+          },
+          "precision": {
+            "lower_95": 0.6736,
+            "upper_95": 1.0,
+            "mean": 0.8897
+          },
+          "recall": {
+            "lower_95": 0.8394,
+            "upper_95": 1.0,
+            "mean": 0.937
+          },
+          "macro_f1": {
+            "lower_95": 0.7902,
+            "upper_95": 0.9841,
+            "mean": 0.9065
+          },
+          "false_strong_rate": {
+            "lower_95": 0.0,
+            "upper_95": 0.1606,
+            "mean": 0.063
+          },
+          "pr_auc": {
+            "lower_95": 0.9421,
+            "upper_95": 1.0,
+            "mean": 0.9842
+          },
+          "roc_auc": {
+            "lower_95": 0.9308,
+            "upper_95": 1.0,
+            "mean": 0.9804
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "resamples": 20,
+            "seed": 42,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "vocabulary_size": 4399,
+      "training_time_ms": 20.15,
+      "inference_latency_us": 54.0
+    },
+    "exp2_length_controlled": {
+      "experiment_id": "exp2_length_controlled",
+      "title": "Experiment 2: Length-Controlled Baseline",
+      "status": "executed_successfully",
+      "description": "Both positive and negative candidates strictly constrained to identical length range [12, 16] chars.",
+      "length_discrepancy_delta": -0.25,
+      "threshold": 0.46,
+      "metrics": {
+        "confusion_matrix": {
+          "true_positives": 15,
+          "false_positives": 2,
+          "true_negatives": 13,
+          "false_negatives": 0,
+          "total": 30
+        },
+        "accuracy": 0.9333,
+        "balanced_accuracy": 0.9333,
+        "precision": 0.8824,
+        "recall": 1.0,
+        "specificity": 0.8667,
+        "negative_predictive_value": 1.0,
+        "macro_f1": 0.933,
+        "matthews_correlation_coefficient": 0.8745,
+        "roc_auc": 0.9911,
+        "pr_auc": 0.9914,
+        "brier_score": 0.1794,
+        "false_strong_rate": 0.0,
+        "false_weak_rate": 0.1333,
+        "support": {
+          "positive_class": 15,
+          "negative_class": 15
+        },
+        "predicted_positive_rate": 0.5667,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.1393,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 0,
+              "confidence": 0.1,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 1,
+              "confidence": 0.3993,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 23,
+              "confidence": 0.4749,
+              "empirical_accuracy": 0.3913
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 4,
+              "confidence": 0.6355,
+              "empirical_accuracy": 1.0
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 2,
+              "confidence": 0.8009,
+              "empirical_accuracy": 1.0
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 0.8158,
+            "upper_95": 0.9842,
+            "mean": 0.9217
+          },
+          "precision": {
+            "lower_95": 0.811,
+            "upper_95": 1.0,
+            "mean": 0.9407
+          },
+          "recall": {
+            "lower_95": 0.7797,
+            "upper_95": 1.0,
+            "mean": 0.8967
+          },
+          "macro_f1": {
+            "lower_95": 0.8157,
+            "upper_95": 0.9841,
+            "mean": 0.9192
+          },
+          "false_strong_rate": {
+            "lower_95": 0.0,
+            "upper_95": 0.2203,
+            "mean": 0.1033
+          },
+          "pr_auc": {
+            "lower_95": 0.9744,
+            "upper_95": 1.0,
+            "mean": 0.9945
+          },
+          "roc_auc": {
+            "lower_95": 0.9685,
+            "upper_95": 1.0,
+            "mean": 0.9937
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "resamples": 20,
+            "seed": 42,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "vocabulary_size": 4334,
+      "training_time_ms": 21.37
+    },
+    "exp3_charset_controlled": {
+      "experiment_id": "exp3_charset_controlled",
+      "title": "Experiment 3: Charset-Controlled Baseline",
+      "status": "executed_successfully",
+      "description": "Both positive and negative classes guaranteed to span lowercase, uppercase, digits, and symbols.",
+      "threshold": 0.48,
+      "metrics": {
+        "confusion_matrix": {
+          "true_positives": 15,
+          "false_positives": 2,
+          "true_negatives": 13,
+          "false_negatives": 0,
+          "total": 30
+        },
+        "accuracy": 0.9333,
+        "balanced_accuracy": 0.9333,
+        "precision": 0.8824,
+        "recall": 1.0,
+        "specificity": 0.8667,
+        "negative_predictive_value": 1.0,
+        "macro_f1": 0.933,
+        "matthews_correlation_coefficient": 0.8745,
+        "roc_auc": 0.9822,
+        "pr_auc": 0.9838,
+        "brier_score": 0.1956,
+        "false_strong_rate": 0.0,
+        "false_weak_rate": 0.1333,
+        "support": {
+          "positive_class": 15,
+          "negative_class": 15
+        },
+        "predicted_positive_rate": 0.5667,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.1627,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 0,
+              "confidence": 0.1,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 0,
+              "confidence": 0.3,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 24,
+              "confidence": 0.4843,
+              "empirical_accuracy": 0.375
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 6,
+              "confidence": 0.6237,
+              "empirical_accuracy": 1.0
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 0,
+              "confidence": 0.9,
+              "empirical_accuracy": 0.0
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 0.7983,
+            "upper_95": 0.9667,
+            "mean": 0.9017
+          },
+          "precision": {
+            "lower_95": 0.7747,
+            "upper_95": 1.0,
+            "mean": 0.9105
+          },
+          "recall": {
+            "lower_95": 0.767,
+            "upper_95": 1.0,
+            "mean": 0.8879
+          },
+          "macro_f1": {
+            "lower_95": 0.7963,
+            "upper_95": 0.9666,
+            "mean": 0.8987
+          },
+          "false_strong_rate": {
+            "lower_95": 0.0,
+            "upper_95": 0.233,
+            "mean": 0.1121
+          },
+          "pr_auc": {
+            "lower_95": 0.9659,
+            "upper_95": 1.0,
+            "mean": 0.9914
+          },
+          "roc_auc": {
+            "lower_95": 0.959,
+            "upper_95": 1.0,
+            "mean": 0.9912
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "resamples": 20,
+            "seed": 42,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "vocabulary_size": 4568,
+      "training_time_ms": 19.23
+    },
+    "exp4_independent_holdout": {
+      "experiment_id": "exp4_independent_holdout_transfer",
+      "title": "Experiment 4: Independent-Generator Holdout (OOD Transfer)",
+      "status": "executed_successfully",
+      "description": "Zero retraining. Evaluates model trained on Exp 1 against completely novel pattern grammars (dates, reverse encasement, PINs, zigzag walks) with seed 9999.",
+      "evaluation_partition": "independent_holdout_100_samples",
+      "threshold": 0.48,
+      "metrics": {
+        "confusion_matrix": {
+          "true_positives": 19,
+          "false_positives": 9,
+          "true_negatives": 41,
+          "false_negatives": 31,
+          "total": 100
+        },
+        "accuracy": 0.6,
+        "balanced_accuracy": 0.6,
+        "precision": 0.6786,
+        "recall": 0.38,
+        "specificity": 0.82,
+        "negative_predictive_value": 0.5694,
+        "macro_f1": 0.5797,
+        "matthews_correlation_coefficient": 0.2227,
+        "roc_auc": 0.7204,
+        "pr_auc": 0.7201,
+        "brier_score": 0.2386,
+        "false_strong_rate": 0.62,
+        "false_weak_rate": 0.18,
+        "support": {
+          "positive_class": 50,
+          "negative_class": 50
+        },
+        "predicted_positive_rate": 0.28,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.0328,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 0,
+              "confidence": 0.1,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 0,
+              "confidence": 0.3,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 99,
+              "confidence": 0.4659,
+              "empirical_accuracy": 0.4949
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 1,
+              "confidence": 0.6029,
+              "empirical_accuracy": 1.0
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 0,
+              "confidence": 0.9,
+              "empirical_accuracy": 0.0
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 0.4632,
+            "upper_95": 0.6515,
+            "mean": 0.573
+          },
+          "precision": {
+            "lower_95": 0.5773,
+            "upper_95": 1.0,
+            "mean": 0.7917
+          },
+          "recall": {
+            "lower_95": 0.1265,
+            "upper_95": 0.3326,
+            "mean": 0.218
+          },
+          "macro_f1": {
+            "lower_95": 0.4186,
+            "upper_95": 0.6049,
+            "mean": 0.5103
+          },
+          "false_strong_rate": {
+            "lower_95": 0.6674,
+            "upper_95": 0.8735,
+            "mean": 0.782
+          },
+          "pr_auc": {
+            "lower_95": 0.5886,
+            "upper_95": 0.8069,
+            "mean": 0.7282
+          },
+          "roc_auc": {
+            "lower_95": 0.5636,
+            "upper_95": 0.8028,
+            "mean": 0.7117
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "resamples": 20,
+            "seed": 42,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "transfer_finding": "Demonstrates out-of-distribution transfer degradation when the statistical n-gram model encounters structural grammars not present in its original training corpus."
+    },
+    "exp5_length_only_diagnostic": {
+      "experiment_id": "exp5_length_only_diagnostic",
+      "title": "Experiment 5: Length-Only Diagnostic Baseline",
+      "status": "executed_successfully",
+      "description": "Logistic regression predicting label using ONLY candidate string length. Quantifies length shortcut in original dataset.",
+      "threshold": 0.64,
+      "metrics": {
+        "confusion_matrix": {
+          "true_positives": 14,
+          "false_positives": 0,
+          "true_negatives": 15,
+          "false_negatives": 1,
+          "total": 30
+        },
+        "accuracy": 0.9667,
+        "balanced_accuracy": 0.9667,
+        "precision": 1.0,
+        "recall": 0.9333,
+        "specificity": 1.0,
+        "negative_predictive_value": 0.9375,
+        "macro_f1": 0.9666,
+        "matthews_correlation_coefficient": 0.9354,
+        "roc_auc": 0.9978,
+        "pr_auc": 0.9958,
+        "brier_score": 0.0357,
+        "false_strong_rate": 0.0667,
+        "false_weak_rate": 0.0,
+        "support": {
+          "positive_class": 15,
+          "negative_class": 15
+        },
+        "predicted_positive_rate": 0.4667,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.0665,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 12,
+              "confidence": 0.0367,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 0,
+              "confidence": 0.3,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 2,
+              "confidence": 0.4511,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 3,
+              "confidence": 0.6848,
+              "empirical_accuracy": 0.6667
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 13,
+              "confidence": 0.9539,
+              "empirical_accuracy": 1.0
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 0.9158,
+            "upper_95": 1.0,
+            "mean": 0.9717
+          },
+          "precision": {
+            "lower_95": 0.8195,
+            "upper_95": 1.0,
+            "mean": 0.9465
+          },
+          "recall": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "macro_f1": {
+            "lower_95": 0.9122,
+            "upper_95": 1.0,
+            "mean": 0.9704
+          },
+          "false_strong_rate": {
+            "lower_95": 0.0,
+            "upper_95": 0.0,
+            "mean": 0.0
+          },
+          "pr_auc": {
+            "lower_95": 0.9882,
+            "upper_95": 1.0,
+            "mean": 0.9972
+          },
+          "roc_auc": {
+            "lower_95": 0.9926,
+            "upper_95": 1.0,
+            "mean": 0.9983
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "resamples": 20,
+            "seed": 42,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "training_time_ms": 4.28
+    },
+    "exp6_composition_only_diagnostic": {
+      "experiment_id": "exp6_composition_only_diagnostic",
+      "title": "Experiment 6: Character-Composition Diagnostic Baseline",
+      "status": "executed_successfully",
+      "description": "Logistic regression predicting label using character class frequencies (lower, upper, digits, symbols, length, unique).",
+      "threshold": 0.12,
+      "metrics": {
+        "confusion_matrix": {
+          "true_positives": 15,
+          "false_positives": 0,
+          "true_negatives": 15,
+          "false_negatives": 0,
+          "total": 30
+        },
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "specificity": 1.0,
+        "negative_predictive_value": 1.0,
+        "macro_f1": 1.0,
+        "matthews_correlation_coefficient": 1.0,
+        "roc_auc": 1.0,
+        "pr_auc": 1.0,
+        "brier_score": 0.0031,
+        "false_strong_rate": 0.0,
+        "false_weak_rate": 0.0,
+        "support": {
+          "positive_class": 15,
+          "negative_class": 15
+        },
+        "predicted_positive_rate": 0.5,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.0156,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 15,
+              "confidence": 0.0071,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 0,
+              "confidence": 0.3,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 0,
+              "confidence": 0.5,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 1,
+              "confidence": 0.7252,
+              "empirical_accuracy": 1.0
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 14,
+              "confidence": 0.9938,
+              "empirical_accuracy": 1.0
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "precision": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "recall": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "macro_f1": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "false_strong_rate": {
+            "lower_95": 0.0,
+            "upper_95": 0.0,
+            "mean": 0.0
+          },
+          "pr_auc": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "roc_auc": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "resamples": 20,
+            "seed": 42,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "training_time_ms": 8.32
+    }
+  },
+  "methodological_conclusions": [
+    "Original Phase 4 synthetic dataset exhibits significant length discrepancy (delta = ~5.4 chars between positive and negative classes).",
+    "Exp 5 demonstrates that length alone can achieve substantial predictive discrimination, confirming a synthetic shortcut.",
+    "Exp 2 and Exp 3 prove that when length and character-set composition are controlled, the character n-gram model still learns structural pattern subwords.",
+    "Exp 4 reveals that the statistical n-gram model experiences out-of-distribution performance drop when evaluated against unseen structural templates, validating the need for Phase 5 explainable feature fusion."
+  ],
+  "limitations": [
+    "All findings are derived from controlled synthetic distributions and do not constitute real-world human password population guarantees.",
+    "Confidence intervals quantify statistical sampling variance on synthetic partitions.",
+    "Zero leaked breach corpora were used in accordance with research ethics."
+  ]
+}

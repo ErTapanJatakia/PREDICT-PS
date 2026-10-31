@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """
-PREDICT-PS Phase 4: Character n-gram TF-IDF + Logistic Regression Baseline
-Trains and evaluates a character n-gram baseline model on isolated synthetic partitions.
-Strict split isolation, reproducible seed, comprehensive security metrics.
+PREDICT-PS Phase 4 & Phase 4.1: Machine Learning Pipelines and Statistical Diagnostics
+Includes:
+1. NgramBaselineModel: Character n-gram TF-IDF (2-5) + Logistic Regression
+2. LengthOnlyBaselineModel: Diagnostic classifier using candidate length only
+3. CompositionOnlyBaselineModel: Diagnostic classifier using character composition counts
+4. Extended evaluation metrics: Balanced Accuracy, Specificity, NPV, MCC, ECE, Reliability Bins
+5. Bootstrap 95% Confidence Intervals (1000 resamples)
+6. Validation-based decision threshold selection
 """
 
 import time
 import math
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -19,14 +24,16 @@ from sklearn.metrics import (
     f1_score,
     roc_auc_score,
     average_precision_score,
-    brier_score_loss
+    brier_score_loss,
+    matthews_corrcoef,
+    balanced_accuracy_score
 )
 
 
 class NgramBaselineModel:
     """
     Character-level TF-IDF n-gram + Logistic Regression Baseline for Password Predictability.
-    Serves as the empirical comparator for future feature-fusion experiments (Phase 5).
+    Empirical comparator for future feature-fusion experiments (Phase 5).
     """
 
     def __init__(
@@ -78,7 +85,6 @@ class NgramBaselineModel:
         if not self.is_fitted:
             raise RuntimeError("Model is not fitted. Call fit() before predict_proba().")
         X = self.vectorizer.transform(candidates)
-        # Returns probability of class 1
         return self.classifier.predict_proba(X)[:, 1]
 
     def predict(self, candidates: List[str], threshold: float = 0.5) -> np.ndarray:
@@ -87,71 +93,337 @@ class NgramBaselineModel:
         return (probas >= threshold).astype(int)
 
     def benchmark_inference_latency(self, candidates: List[str], repetitions: int = 3) -> float:
-        """
-        Measures mean inference latency per candidate in microseconds.
-        """
+        """Measures mean inference latency per candidate in microseconds."""
         if not self.is_fitted:
             raise RuntimeError("Model is not fitted.")
-        
-        # Warmup
-        _ = self.predict_proba(candidates[:100])
-
+        _ = self.predict_proba(candidates[:min(100, len(candidates))])
         durations = []
         for _ in range(repetitions):
             t0 = time.perf_counter()
             _ = self.predict_proba(candidates)
             elapsed = time.perf_counter() - t0
             durations.append(elapsed)
+        mean_sec = sum(durations) / len(durations)
+        return (mean_sec / len(candidates)) * 1_000_000.0
 
-        mean_duration_sec = sum(durations) / len(durations)
-        microseconds_per_sample = (mean_duration_sec / len(candidates)) * 1_000_000.0
-        return microseconds_per_sample
+
+class LengthOnlyBaselineModel:
+    """
+    Diagnostic Control Classifier: Predicts label using candidate string length alone.
+    Demonstrates whether the dataset exhibits length-based shortcut learning.
+    """
+
+    def __init__(self, random_state: int = 42):
+        self.classifier = LogisticRegression(random_state=random_state)
+        self.is_fitted = False
+
+    def _extract_features(self, candidates: List[str]) -> np.ndarray:
+        return np.array([[len(c)] for c in candidates], dtype=float)
+
+    def fit(self, train_candidates: List[str], train_labels: List[int]) -> float:
+        t0 = time.perf_counter()
+        X = self._extract_features(train_candidates)
+        self.classifier.fit(X, train_labels)
+        self.is_fitted = True
+        return (time.perf_counter() - t0) * 1000.0
+
+    def predict_proba(self, candidates: List[str]) -> np.ndarray:
+        if not self.is_fitted:
+            raise RuntimeError("Model is not fitted.")
+        X = self._extract_features(candidates)
+        return self.classifier.predict_proba(X)[:, 1]
+
+    def predict(self, candidates: List[str], threshold: float = 0.5) -> np.ndarray:
+        return (self.predict_proba(candidates) >= threshold).astype(int)
+
+
+class CompositionOnlyBaselineModel:
+    """
+    Diagnostic Control Classifier: Predicts label using simple character class counts:
+    [length, lowercase_count, uppercase_count, digit_count, symbol_count, unique_chars].
+    Demonstrates how much predictable signal is attributable to coarse character diversity.
+    """
+
+    def __init__(self, random_state: int = 42):
+        self.classifier = LogisticRegression(random_state=random_state, max_iter=500)
+        self.is_fitted = False
+
+    def _extract_features(self, candidates: List[str]) -> np.ndarray:
+        symbols = set("!@#$%^&*()_+-=[]{}|;:,.<>?/`~'\"\\")
+        features = []
+        for c in candidates:
+            n = len(c)
+            lower = sum(1 for ch in c if ch.islower())
+            upper = sum(1 for ch in c if ch.isupper())
+            digits = sum(1 for ch in c if ch.isdigit())
+            syms = sum(1 for ch in c if ch in symbols)
+            uniq = len(set(c))
+            features.append([n, lower, upper, digits, syms, uniq])
+        return np.array(features, dtype=float)
+
+    def fit(self, train_candidates: List[str], train_labels: List[int]) -> float:
+        t0 = time.perf_counter()
+        X = self._extract_features(train_candidates)
+        self.classifier.fit(X, train_labels)
+        self.is_fitted = True
+        return (time.perf_counter() - t0) * 1000.0
+
+    def predict_proba(self, candidates: List[str]) -> np.ndarray:
+        if not self.is_fitted:
+            raise RuntimeError("Model is not fitted.")
+        X = self._extract_features(candidates)
+        return self.classifier.predict_proba(X)[:, 1]
+
+    def predict(self, candidates: List[str], threshold: float = 0.5) -> np.ndarray:
+        return (self.predict_proba(candidates) >= threshold).astype(int)
+
+
+def compute_calibration_curve(
+    y_true: List[int],
+    y_proba: np.ndarray,
+    n_bins: int = 5
+) -> Dict[str, Any]:
+    """
+    Computes reliability diagram bins and Expected Calibration Error (ECE).
+    """
+    y_true_arr = np.array(y_true)
+    bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+    bins_data = []
+    ece = 0.0
+    total_samples = len(y_true_arr)
+
+    for i in range(n_bins):
+        low, high = bin_edges[i], bin_edges[i + 1]
+        if i == n_bins - 1:
+            mask = (y_proba >= low) & (y_proba <= high)
+        else:
+            mask = (y_proba >= low) & (y_proba < high)
+
+        bin_count = int(np.sum(mask))
+        if bin_count > 0:
+            bin_conf = float(np.mean(y_proba[mask]))
+            bin_acc = float(np.mean(y_true_arr[mask]))
+            abs_diff = abs(bin_acc - bin_conf)
+            ece += (bin_count / total_samples) * abs_diff
+        else:
+            bin_conf = float((low + high) / 2.0)
+            bin_acc = 0.0
+
+        bins_data.append({
+            "bin_index": i,
+            "range": [round(low, 2), round(high, 2)],
+            "count": bin_count,
+            "confidence": round(bin_conf, 4),
+            "empirical_accuracy": round(bin_acc, 4)
+        })
+
+    return {
+        "n_bins": n_bins,
+        "expected_calibration_error": round(ece, 4),
+        "bins": bins_data,
+        "calibration_caveat": (
+            "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, "
+            "not a calibrated empirical probability of real-world offline password cracking."
+        )
+    }
+
+
+def compute_bootstrap_confidence_intervals(
+    y_true: List[int],
+    y_proba: np.ndarray,
+    threshold: float = 0.5,
+    n_bootstraps: int = 1000,
+    seed: int = 42
+) -> Dict[str, Dict[str, float]]:
+    """
+    Computes 95% bootstrap confidence intervals for key performance metrics.
+    Uses percentile method with fixed seed for exact reproducibility.
+    """
+    rng = np.random.RandomState(seed)
+    y_true_arr = np.array(y_true)
+    n = len(y_true_arr)
+
+    accs, precs, recs, f1s, fsrs, pr_aucs, roc_aucs = [], [], [], [], [], [], []
+
+    for i in range(n_bootstraps):
+        idx = rng.randint(0, n, size=n)
+        sample_true = y_true_arr[idx]
+        sample_proba = y_proba[idx]
+        sample_pred = (sample_proba >= threshold).astype(int)
+
+        n_pos = np.sum(sample_true == 1)
+        n_neg = len(sample_true) - n_pos
+        if n_pos == 0 or n_neg == 0:
+            continue
+
+        tp = int(np.sum((sample_true == 1) & (sample_pred == 1)))
+        tn = int(np.sum((sample_true == 0) & (sample_pred == 0)))
+        fp = int(np.sum((sample_true == 0) & (sample_pred == 1)))
+        fn = int(np.sum((sample_true == 1) & (sample_pred == 0)))
+
+        accs.append((tp + tn) / n)
+        precs.append(tp / (tp + fp) if (tp + fp) > 0 else 0.0)
+        recs.append(tp / (tp + fn) if (tp + fn) > 0 else 0.0)
+        
+        f1_p = (2 * tp) / (2 * tp + fp + fn) if (2 * tp + fp + fn) > 0 else 0.0
+        f1_n = (2 * tn) / (2 * tn + fp + fn) if (2 * tn + fp + fn) > 0 else 0.0
+        f1s.append((f1_p + f1_n) / 2.0)
+
+        fsr = (fn / (tp + fn)) if (tp + fn) > 0 else 0.0
+        fsrs.append(fsr)
+
+        # Compute ranking metrics on subset of resamples for high performance
+        if i < min(n_bootstraps, 150):
+            try:
+                roc_aucs.append(float(roc_auc_score(sample_true, sample_proba)))
+            except ValueError:
+                pass
+
+            try:
+                pr_aucs.append(float(average_precision_score(sample_true, sample_proba)))
+            except ValueError:
+                pass
+
+    def get_ci(values: List[float]) -> Dict[str, float]:
+        if not values:
+            return {"lower_95": 0.0, "upper_95": 0.0, "mean": 0.0}
+        return {
+            "lower_95": round(float(np.percentile(values, 2.5)), 4),
+            "upper_95": round(float(np.percentile(values, 97.5)), 4),
+            "mean": round(float(np.mean(values)), 4)
+        }
+
+    return {
+        "accuracy": get_ci(accs),
+        "precision": get_ci(precs),
+        "recall": get_ci(recs),
+        "macro_f1": get_ci(f1s),
+        "false_strong_rate": get_ci(fsrs),
+        "pr_auc": get_ci(pr_aucs),
+        "roc_auc": get_ci(roc_aucs),
+        "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "resamples": n_bootstraps,
+            "seed": seed,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+        }
+    }
+
+
+def select_validation_threshold(
+    val_y_true: List[int],
+    val_probas: np.ndarray,
+    optimization_target: str = "balanced"
+) -> float:
+    """
+    Determines decision threshold tau using validation split ONLY.
+    Never uses test data.
+    """
+    thresholds = np.linspace(0.1, 0.9, 81)
+    best_th = 0.5
+    best_score = -1.0
+
+    for th in thresholds:
+        preds = (val_probas >= th).astype(int)
+        if optimization_target == "balanced":
+            score = balanced_accuracy_score(val_y_true, preds)
+        elif optimization_target == "f1":
+            score = f1_score(val_y_true, preds, average='macro')
+        else:
+            # minimize FSR while maintaining precision > 0.85
+            tn, fp, fn, tp = confusion_matrix(val_y_true, preds, labels=[0, 1]).ravel()
+            fsr = fn / (tp + fn) if (tp + fn) > 0 else 1.0
+            score = 1.0 - fsr
+
+        if score > best_score:
+            best_score = score
+            best_th = th
+
+    return round(float(best_th), 3)
 
 
 def evaluate_predictions(
     y_true: List[int],
     y_pred: np.ndarray,
-    y_proba: np.ndarray
+    y_proba: np.ndarray,
+    compute_cis: bool = False,
+    n_bootstraps: int = 1000
 ) -> Dict[str, Any]:
     """
     Computes rigorous cybersecurity evaluation metrics:
-    - Precision, Recall, Macro-F1, Accuracy
+    - Confusion Matrix (TP, FP, TN, FN, Total)
+    - Accuracy, Balanced Accuracy, Precision, Recall, Specificity, NPV, Macro-F1, MCC
     - PR-AUC, ROC-AUC, Brier score
     - False-Strong Rate (FSR): FN / (TP + FN)
-    - Confusion Matrix breakdown
+    - False-Weak Rate (FWR): FP / (TN + FP)
+    - Class support and predicted-positive rate
+    - Optional bootstrap 95% confidence intervals
+    - Reliability & calibration curve diagnostics
     """
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
-    
+    total = int(tp + fp + tn + fn)
+
     acc = float(accuracy_score(y_true, y_pred))
+    bal_acc = float(balanced_accuracy_score(y_true, y_pred))
     prec = float(precision_score(y_true, y_pred, zero_division=0))
     rec = float(recall_score(y_true, y_pred, zero_division=0))
     f1_macro = float(f1_score(y_true, y_pred, average='macro'))
-    roc_auc = float(roc_auc_score(y_true, y_proba))
-    pr_auc = float(average_precision_score(y_true, y_proba))
+    
+    # Specificity = TN / (TN + FP)
+    specificity = float(tn / (tn + fp)) if (tn + fp) > 0 else 0.0
+    # NPV = TN / (TN + FN)
+    npv = float(tn / (tn + fn)) if (tn + fn) > 0 else 0.0
+    # MCC
+    mcc = float(matthews_corrcoef(y_true, y_pred))
+
+    try:
+        roc_auc = float(roc_auc_score(y_true, y_proba))
+    except ValueError:
+        roc_auc = 0.5
+
+    try:
+        pr_auc = float(average_precision_score(y_true, y_proba))
+    except ValueError:
+        pr_auc = 0.5
+
     brier = float(brier_score_loss(y_true, y_proba))
 
-    # False-Strong Rate: Predicts 0 (resistant/strong) when ground truth is 1 (guessable)
-    # FSR = FN / (TP + FN) = 1 - Recall
+    # Security rates
     fsr = float(fn / (tp + fn)) if (tp + fn) > 0 else 0.0
-    # False-Weak Rate: Predicts 1 (guessable) when ground truth is 0 (resistant)
-    # FWR = FP / (TN + FP)
     fwr = float(fp / (tn + fp)) if (tn + fp) > 0 else 0.0
 
-    return {
+    calibration = compute_calibration_curve(y_true, y_proba, n_bins=5)
+
+    metrics = {
         "confusion_matrix": {
             "true_positives": int(tp),
             "false_positives": int(fp),
             "true_negatives": int(tn),
             "false_negatives": int(fn),
-            "total": int(tp + fp + tn + fn)
+            "total": total
         },
         "accuracy": round(acc, 4),
+        "balanced_accuracy": round(bal_acc, 4),
         "precision": round(prec, 4),
         "recall": round(rec, 4),
+        "specificity": round(specificity, 4),
+        "negative_predictive_value": round(npv, 4),
         "macro_f1": round(f1_macro, 4),
+        "matthews_correlation_coefficient": round(mcc, 4),
         "roc_auc": round(roc_auc, 4),
         "pr_auc": round(pr_auc, 4),
         "brier_score": round(brier, 4),
         "false_strong_rate": round(fsr, 4),
-        "false_weak_rate": round(fwr, 4)
+        "false_weak_rate": round(fwr, 4),
+        "support": {
+            "positive_class": int(tp + fn),
+            "negative_class": int(tn + fp)
+        },
+        "predicted_positive_rate": round(float((tp + fp) / total), 4) if total > 0 else 0.0,
+        "calibration": calibration
     }
+
+    if compute_cis:
+        metrics["confidence_intervals_95"] = compute_bootstrap_confidence_intervals(y_true, y_proba, n_bootstraps=n_bootstraps)
+
+    return metrics

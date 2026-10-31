@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-PREDICT-PS Phase 4: Synthetic Dataset Generator
-Generates reproducible, structured synthetic password candidates for baseline evaluation.
+PREDICT-PS Phase 4 & Phase 4.1: Synthetic Dataset Generator
+Generates reproducible, structured synthetic password candidates for baseline evaluation,
+dataset diagnostics, and shortcut-learning investigation.
+
 Zero breach data, zero credential dumps, zero external downloads.
 """
 
@@ -108,7 +110,7 @@ def generate_synthetic_dataset(
     positive_ratio: float = 0.5
 ) -> Tuple[List[str], List[int], List[str]]:
     """
-    Generates a balanced synthetic dataset with strict deduplication.
+    Generates a balanced synthetic dataset with strict deduplication (Phase 4 baseline).
     Returns:
         candidates: List of password strings
         labels: 1 = Guessable/Predictable pattern, 0 = High-entropy uniform
@@ -160,6 +162,263 @@ def generate_synthetic_dataset(
     rng.shuffle(combined)
     cands, lbls, ptypes = zip(*combined)
 
+    return list(cands), list(lbls), list(ptypes)
+
+
+# --- Phase 4.1 Diagnostic Generators: Length-Controlled, Charset-Controlled, and Independent Holdout ---
+
+# --- Phase 4.1 Diagnostic Generators: Length-Controlled, Charset-Controlled, and Independent Holdout ---
+
+EXPANDED_WORDS = [
+    "password", "welcome", "admin", "summer", "winter", "spring", "autumn",
+    "dragon", "master", "monkey", "shadow", "sunshine", "football", "baseball",
+    "access", "secret", "system", "computer", "internet", "security", "charlie",
+    "superman", "batman", "pokemon", "starwars", "galaxy", "rover", "harley",
+    "yellow", "diamond", "freedom", "matrix", "falcon", "phantom", "ranger",
+    "wizard", "thunder", "tiger", "orange", "silver", "knight", "phoenix",
+    "mustang", "champion", "warrior", "spiderman", "avenger", "captain"
+]
+
+ALL_SYMBOLS = "!@#$%^&*()_+-=[]{}|;:,.<>?"
+
+
+def generate_length_controlled_candidate(rng: random.Random, target_len: int, is_positive: bool) -> Tuple[str, str]:
+    """Generates candidate forced to exactly `target_len` characters with vast combinatoric space."""
+    all_chars = string.ascii_lowercase + string.ascii_uppercase + string.digits + ALL_SYMBOLS
+    
+    if not is_positive:
+        # Negative class: Uniform random with exact target length
+        cand = "".join(rng.choice(all_chars) for _ in range(target_len))
+        return cand, "uniform_length_controlled"
+
+    # Positive class: Construct structural pattern adjusted to target_len
+    mode = rng.choice(["dict_pad", "seq_pad", "walk_pad", "repeat_pad"])
+    if mode == "dict_pad":
+        word = rng.choice(EXPANDED_WORDS)
+        if rng.random() > 0.5:
+            word = word.capitalize()
+        if len(word) >= target_len:
+            word = word[:target_len - 3]
+        needed = target_len - len(word)
+        # Suffix of numbers and optional symbol
+        suffix = "".join(rng.choice(string.digits) for _ in range(needed))
+        cand = word + suffix
+        return cand, "dict_length_controlled"
+
+    elif mode == "seq_pad":
+        start_digit = rng.randint(0, 9)
+        seq_digits = "".join(str((start_digit + i) % 10) for i in range(target_len))
+        if rng.random() > 0.5:
+            # Ascending/descending alphabetic sequence
+            start_ch = rng.randint(0, 10)
+            seq_alpha = "".join(chr(ord('a') + ((start_ch + i) % 26)) for i in range(target_len))
+            if rng.random() > 0.5:
+                seq_alpha = seq_alpha.capitalize()
+            return seq_alpha, "sequential_length_controlled"
+        return seq_digits, "sequential_length_controlled"
+
+    elif mode == "walk_pad":
+        row = rng.choice(KEYBOARD_ROWS)
+        start = rng.randint(0, max(0, len(row) - 4))
+        walk_base = (row[start:] + row * 3)[:target_len]
+        if rng.random() > 0.5:
+            walk_base = walk_base[::-1]
+        return walk_base, "keyboard_length_controlled"
+
+    else:
+        # Repeated token + number pad
+        token = rng.choice(["pass", "test", "abc", "safe", "love", "123", "root"])
+        repeats = (target_len // len(token)) + 1
+        cand = (token * repeats)[:target_len]
+        return cand, "repeat_length_controlled"
+
+
+def generate_length_controlled_dataset(
+    n_samples: int = 4000,
+    seed: int = 42,
+    target_length_range: Tuple[int, int] = (12, 16)
+) -> Tuple[List[str], List[int], List[str]]:
+    """
+    Experiment 2: Both positive and negative classes share identical length distributions.
+    Eliminates length discrepancy as a shortcut feature.
+    """
+    rng = random.Random(seed)
+    n_pos = n_samples // 2
+    n_neg = n_samples - n_pos
+
+    seen_exact: Set[str] = set()
+    seen_normalized: Set[str] = set()
+    candidates: List[str] = []
+    labels: List[int] = []
+    pattern_types: List[str] = []
+
+    # Generate matched lengths for positive class
+    while len([l for l in labels if l == 1]) < n_pos:
+        t_len = rng.randint(target_length_range[0], target_length_range[1])
+        cand, ptype = generate_length_controlled_candidate(rng, t_len, is_positive=True)
+        cand_norm = cand.strip().lower()
+        if cand not in seen_exact and cand_norm not in seen_normalized:
+            seen_exact.add(cand)
+            seen_normalized.add(cand_norm)
+            candidates.append(cand)
+            labels.append(1)
+            pattern_types.append(ptype)
+
+    # Generate matched lengths for negative class
+    while len([l for l in labels if l == 0]) < n_neg:
+        t_len = rng.randint(target_length_range[0], target_length_range[1])
+        cand, ptype = generate_length_controlled_candidate(rng, t_len, is_positive=False)
+        cand_norm = cand.strip().lower()
+        if cand not in seen_exact and cand_norm not in seen_normalized:
+            seen_exact.add(cand)
+            seen_normalized.add(cand_norm)
+            candidates.append(cand)
+            labels.append(0)
+            pattern_types.append(ptype)
+
+    combined = list(zip(candidates, labels, pattern_types))
+    rng.shuffle(combined)
+    cands, lbls, ptypes = zip(*combined)
+    return list(cands), list(lbls), list(ptypes)
+
+
+def generate_charset_controlled_dataset(
+    n_samples: int = 4000,
+    seed: int = 42
+) -> Tuple[List[str], List[int], List[str]]:
+    """
+    Experiment 3: Controls for character-class presence.
+    Both positive and negative candidates are guaranteed to contain lowercase, uppercase,
+    digits, and symbols, preventing trivial character-type presence shortcuts.
+    """
+    rng = random.Random(seed)
+    n_pos = n_samples // 2
+    n_neg = n_samples - n_pos
+
+    seen_exact: Set[str] = set()
+    seen_normalized: Set[str] = set()
+    candidates: List[str] = []
+    labels: List[int] = []
+    pattern_types: List[str] = []
+
+    all_chars = string.ascii_lowercase + string.ascii_uppercase + string.digits + "!@#$%^&*"
+
+    while len([l for l in labels if l == 1]) < n_pos:
+        # Positive: Word (with Capital) + random 2-4 digit sequence + symbol affix
+        word = rng.choice(EXPANDED_WORDS).capitalize()
+        pin = rng.randint(10, 9999)
+        sym = rng.choice(["!", "@", "#", "$", "%", "&", "*", "?"])
+        if rng.random() > 0.5:
+            cand = f"{word}{pin}{sym}"
+        else:
+            cand = f"{sym}{word}{pin}"
+        cand_norm = cand.strip().lower()
+        if cand not in seen_exact and cand_norm not in seen_normalized:
+            seen_exact.add(cand)
+            seen_normalized.add(cand_norm)
+            candidates.append(cand)
+            labels.append(1)
+            pattern_types.append("charset_controlled_positive")
+
+    while len([l for l in labels if l == 0]) < n_neg:
+        # Negative: Uniform random guaranteed to have all 4 classes
+        length = rng.randint(12, 16)
+        base = [
+            rng.choice(string.ascii_lowercase),
+            rng.choice(string.ascii_uppercase),
+            rng.choice(string.digits),
+            rng.choice("!@#$%^&*")
+        ]
+        base += [rng.choice(all_chars) for _ in range(length - 4)]
+        rng.shuffle(base)
+        cand = "".join(base)
+        cand_norm = cand.strip().lower()
+        if cand not in seen_exact and cand_norm not in seen_normalized:
+            seen_exact.add(cand)
+            seen_normalized.add(cand_norm)
+            candidates.append(cand)
+            labels.append(0)
+            pattern_types.append("charset_controlled_negative")
+
+    combined = list(zip(candidates, labels, pattern_types))
+    rng.shuffle(combined)
+    cands, lbls, ptypes = zip(*combined)
+    return list(cands), list(lbls), list(ptypes)
+
+
+def generate_independent_holdout_dataset(
+    n_samples: int = 1000,
+    seed: int = 9999
+) -> Tuple[List[str], List[int], List[str]]:
+    """
+    Experiment 4: Independent Synthetic Generator Holdout (Out-of-Distribution evaluation).
+    Uses a completely distinct seed (9999) and novel pattern grammars that were NEVER seen
+    in the training set:
+    - Date format templates (e.g. '1995-10-24!', '12/05/1988#')
+    - Reverse words with symbol encasement (e.g. '@drowssap@', '#retupmoc#')
+    - Diagonal/zigzag keyboard walks (e.g. '1qaz2wsx3edc')
+    - PIN padded names (e.g. '9876_Alexander!', '1122_Samantha$')
+    """
+    rng = random.Random(seed)
+    n_pos = n_samples // 2
+    n_neg = n_samples - n_pos
+
+    novel_names = ["alexander", "samantha", "benjamin", "victoria", "nicholas", "katherine", "theodore"]
+    seen_exact: Set[str] = set()
+    candidates: List[str] = []
+    labels: List[int] = []
+    pattern_types: List[str] = []
+
+    def make_novel_positive(rng: random.Random) -> Tuple[str, str]:
+        mode = rng.choice(["date_iso", "reverse_encased", "zigzag_walk", "pin_padded_name"])
+        if mode == "date_iso":
+            year = rng.randint(1970, 2026)
+            month = rng.randint(1, 12)
+            day = rng.randint(1, 28)
+            sep = rng.choice(["-", "/", "."])
+            sym = rng.choice(["!", "@", "#"])
+            cand = f"{year:04d}{sep}{month:02d}{sep}{day:02d}{sym}"
+            return cand, "date_iso_novel"
+
+        elif mode == "reverse_encased":
+            w = rng.choice(novel_names)[::-1]
+            sym = rng.choice(["*", "#", "$", "&"])
+            cand = f"{sym}{w}{sym}{rng.randint(1, 99)}"
+            return cand, "reverse_encased_novel"
+
+        elif mode == "zigzag_walk":
+            # Diagonal keyboard walk
+            walks = ["1qaz2wsx", "zaq1xsw2", "3edc4rfv", "qazwsxedc", "0okm9ijn"]
+            cand = rng.choice(walks) + str(rng.randint(10, 99)) + "!"
+            return cand, "zigzag_walk_novel"
+
+        else:
+            name = rng.choice(novel_names).capitalize()
+            pin = f"{rng.randint(1000, 9999)}"
+            cand = f"{pin}_{name}!"
+            return cand, "pin_padded_name_novel"
+
+    while len([l for l in labels if l == 1]) < n_pos:
+        cand, ptype = make_novel_positive(rng)
+        if cand not in seen_exact and len(cand) >= 8:
+            seen_exact.add(cand)
+            candidates.append(cand)
+            labels.append(1)
+            pattern_types.append(ptype)
+
+    all_chars = string.ascii_letters + string.digits + "!@#$%^&*()_+-="
+    while len([l for l in labels if l == 0]) < n_neg:
+        length = rng.randint(10, 18)
+        cand = "".join(rng.choice(all_chars) for _ in range(length))
+        if cand not in seen_exact:
+            seen_exact.add(cand)
+            candidates.append(cand)
+            labels.append(0)
+            pattern_types.append("independent_uniform_random")
+
+    combined = list(zip(candidates, labels, pattern_types))
+    rng.shuffle(combined)
+    cands, lbls, ptypes = zip(*combined)
     return list(cands), list(lbls), list(ptypes)
 
 

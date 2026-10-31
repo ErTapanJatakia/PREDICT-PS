@@ -20,6 +20,8 @@ import {
   evaluateZxcvbn,
   evaluateNistGuidance,
   validatePhase4ArtifactSchema,
+  validatePhase41ManifestSchema,
+  calculateExtendedMetrics,
   calculateFalseStrongRate,
   calculateFalseWeakRate,
   LOWERCASE_CHARS,
@@ -403,6 +405,65 @@ test('validatePhase4ArtifactSchema: accepts valid schema and rejects invalid or 
   assert.ok(privRes.errors.some(e => e.includes('Privacy violation')));
 });
 
+test('calculateExtendedMetrics: verifies Balanced Accuracy, Specificity, NPV, and MCC formulas', () => {
+  // TP=30, FP=10, TN=40, FN=20
+  const metrics = calculateExtendedMetrics(30, 10, 40, 20);
+  // Recall = 30 / (30 + 20) = 0.60
+  // Specificity = 40 / (40 + 10) = 0.80
+  // Balanced Accuracy = (0.60 + 0.80) / 2 = 0.70
+  assert.equal(metrics.balancedAccuracy, 0.70);
+  assert.equal(metrics.specificity, 0.80);
+  // NPV = 40 / (40 + 20) = 0.6667
+  assert.equal(metrics.negativePredictiveValue, 0.6667);
+  // MCC
+  assert.ok(metrics.matthewsCorrelationCoefficient > 0);
+
+  // Edge case: all zeros
+  const zeroMetrics = calculateExtendedMetrics(0, 0, 0, 0);
+  assert.equal(zeroMetrics.balancedAccuracy, 0);
+  assert.equal(zeroMetrics.matthewsCorrelationCoefficient, 0);
+});
+
+test('validatePhase41ManifestSchema: validates manifest structure and rejects raw candidates', () => {
+  const validManifest = {
+    schema_version: 'predict_ps_phase4_1_v1',
+    manifest_type: 'research_integrity_baseline_validation',
+    timestamp_utc: '2026-10-31T18:00:00Z',
+    environment: {
+      python_version: '3.10.12',
+      platform: 'Linux',
+      scikit_learn_version: '1.7.2',
+      numpy_version: '2.2.6',
+      scipy_version: '1.15.3',
+    },
+    dataset_diagnostics: {},
+    experiments: {
+      exp1_original_baseline: {},
+      exp2_length_controlled: {},
+      exp3_charset_controlled: {},
+      exp4_independent_holdout: {},
+      exp5_length_only_diagnostic: {},
+      exp6_composition_only_diagnostic: {},
+    },
+  };
+
+  const res = validatePhase41ManifestSchema(validManifest);
+  assert.equal(res.valid, true);
+
+  // Backward compatibility check: validatePhase4ArtifactSchema accepts predict_ps_phase4_1_v1 too
+  const backwardRes = validatePhase4ArtifactSchema(validManifest);
+  assert.equal(backwardRes.valid, true);
+
+  // Rejection of raw candidate strings
+  const leakManifest = {
+    ...validManifest,
+    candidates: ['Pass123!'],
+  };
+  const leakRes = validatePhase41ManifestSchema(leakManifest);
+  assert.equal(leakRes.valid, false);
+  assert.ok(leakRes.errors.some(e => e.includes('Privacy violation')));
+});
+
 test('source-level privacy check: ensures no breach APIs or remote telemetry are imported', () => {
   const foundationSource = readFileSync(resolve(process.cwd(), 'src/lib/foundation.ts'), 'utf-8');
   
@@ -414,5 +475,6 @@ test('source-level privacy check: ensures no breach APIs or remote telemetry are
   assert.ok(!foundationSource.includes('axios'));
   assert.ok(!foundationSource.includes('fetch('));
 });
+
 
 
