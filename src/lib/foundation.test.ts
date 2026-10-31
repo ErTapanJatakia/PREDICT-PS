@@ -13,14 +13,22 @@ import {
   sanitizeResearchExport,
   getResearchPhases,
   getResearchQuestions,
+  getBaselineSpecs,
   buildUniqueCharset,
   generateUnbiasedPassword,
   analyzeExplainablePatterns,
+  evaluateZxcvbn,
+  evaluateNistGuidance,
+  validatePhase4ArtifactSchema,
+  calculateFalseStrongRate,
+  calculateFalseWeakRate,
   LOWERCASE_CHARS,
   UPPERCASE_CHARS,
   DIGIT_CHARS,
   SYMBOL_CHARS,
 } from './foundation';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 test('calculateUnbiasedSamplingThreshold: powers of 2 have zero rejection', () => {
   // For charsetSize = 16 (hex) or 64 (base64 subset)
@@ -152,15 +160,19 @@ test('sanitizeResearchExport: prevents password or credential leakage', () => {
   assert.equal((result.sanitized.metrics as any).macroF1, 0.89);
 });
 
-test('getResearchPhases: honest statuses reflect Phase 1 and 2 completed, 3-6 planned', () => {
+test('getResearchPhases: honest statuses reflect Phase 1, 2, 3, and 4 completed, 5-6 planned', () => {
   const phases = getResearchPhases();
   assert.equal(phases.length, 6);
   assert.equal(phases[0].id, 1);
   assert.equal(phases[0].status, 'completed');
   assert.equal(phases[1].id, 2);
   assert.equal(phases[1].status, 'completed');
+  assert.equal(phases[2].id, 3);
+  assert.equal(phases[2].status, 'completed');
+  assert.equal(phases[3].id, 4);
+  assert.equal(phases[3].status, 'completed');
 
-  for (let i = 2; i < phases.length; i++) {
+  for (let i = 4; i < phases.length; i++) {
     assert.equal(phases[i].status, 'planned');
   }
 });
@@ -278,4 +290,129 @@ test('analyzeExplainablePatterns: detects QWERTY keyboard adjacency walks', () =
   const homeRow = analyzeExplainablePatterns('helloasdfghjk');
   assert.ok(homeRow.keyboardWalks.some(k => k.pattern.toLowerCase() === 'asdfghjk'));
 });
+
+test('evaluateZxcvbn: handles empty input gracefully with safe score 0', () => {
+  const emptyRes = evaluateZxcvbn('');
+  assert.equal(emptyRes.score, 0);
+  assert.equal(emptyRes.guesses, 1);
+  assert.equal(emptyRes.guessesLog10, 0);
+  assert.equal(emptyRes.warning, 'Empty password candidate.');
+  assert.ok(emptyRes.suggestions.length > 0);
+  assert.equal(emptyRes.matchedPatterns.length, 0);
+});
+
+test('evaluateZxcvbn: accurately evaluates weak and strong candidates locally', () => {
+  // Weak password
+  const weak = evaluateZxcvbn('password123');
+  assert.ok(weak.score <= 1);
+  assert.ok(weak.score >= 0);
+  assert.ok(weak.guessesLog10 <= 6);
+  assert.ok(weak.matchedPatterns.length > 0);
+  assert.ok(weak.matchedPatterns.some(m => m.pattern === 'dictionary'));
+
+  // Strong multi-word passphrase
+  const strong = evaluateZxcvbn('correcthorsebatterystaple');
+  assert.ok(strong.score >= 3);
+  assert.ok(strong.guessesLog10 >= 10);
+  assert.ok(typeof strong.calcTimeMs === 'number');
+});
+
+test('evaluateNistGuidance: verifies length tiers and composition rule prohibitions', () => {
+  // Empty
+  const empty = evaluateNistGuidance('');
+  assert.equal(empty.meetsMfaMinLength, false);
+  assert.equal(empty.meetsSingleFactorMinLength, false);
+
+  // Short (<8 chars)
+  const short = evaluateNistGuidance('short1');
+  assert.equal(short.meetsMfaMinLength, false);
+  assert.equal(short.meetsSingleFactorMinLength, false);
+
+  // Medium (8-14 chars)
+  const med = evaluateNistGuidance('MediumPass1!');
+  assert.equal(med.meetsMfaMinLength, true);
+  assert.equal(med.meetsSingleFactorMinLength, false);
+
+  // Single-factor compliant (>=15 chars)
+  const longPass = evaluateNistGuidance('Correct-Horse-Battery-Staple');
+  assert.equal(longPass.meetsMfaMinLength, true);
+  assert.equal(longPass.meetsSingleFactorMinLength, true);
+  assert.equal(longPass.withinMaxAllowedLength, true);
+
+  // Policy invariants
+  assert.equal(longPass.blocklistCheckStatus, 'not-implemented-client-boundary');
+  assert.ok(longPass.compositionRuleNotice.includes('prohibits composition rules'));
+});
+
+test('getBaselineSpecs: verifies baseline statuses for Phase 4', () => {
+  const baselines = getBaselineSpecs();
+  const rules = baselines.find(b => b.id === 'baseline-rules');
+  const zxcvbn = baselines.find(b => b.id === 'baseline-zxcvbn');
+  const ngram = baselines.find(b => b.id === 'baseline-ngram');
+  const fusion = baselines.find(b => b.id === 'proposed-fusion');
+
+  assert.equal(rules?.status, 'completed');
+  assert.equal(zxcvbn?.status, 'completed');
+  assert.equal(ngram?.status, 'completed');
+  assert.equal(fusion?.status, 'planned');
+});
+
+test('calculateFalseStrongRate and calculateFalseWeakRate: security formula correctness', () => {
+  // FSR = FN / (TP + FN)
+  assert.equal(calculateFalseStrongRate(10, 90), 0.1);
+  assert.equal(calculateFalseStrongRate(0, 100), 0.0);
+  assert.equal(calculateFalseStrongRate(0, 0), 0.0);
+
+  // FWR = FP / (TN + FP)
+  assert.equal(calculateFalseWeakRate(20, 80), 0.2);
+  assert.equal(calculateFalseWeakRate(0, 100), 0.0);
+  assert.equal(calculateFalseWeakRate(0, 0), 0.0);
+});
+
+test('validatePhase4ArtifactSchema: accepts valid schema and rejects invalid or privacy-violating payloads', () => {
+  const validArtifact = {
+    schema_version: 'predict_ps_phase4_v1',
+    pipeline_status: 'synthetic_pipeline_validation',
+    model_architecture: { name: 'n-gram baseline' },
+    dataset_provenance: { total_samples: 4000 },
+    evaluation_metrics: {
+      threshold: 0.5,
+      test_split: { accuracy: 1.0 },
+    },
+  };
+
+  const validRes = validatePhase4ArtifactSchema(validArtifact);
+  assert.equal(validRes.valid, true);
+  assert.equal(validRes.errors.length, 0);
+
+  // Rejects wrong schema_version
+  const badVersion = { ...validArtifact, schema_version: 'v0' };
+  assert.equal(validatePhase4ArtifactSchema(badVersion).valid, false);
+
+  // Rejects invalid pipeline_status
+  const badStatus = { ...validArtifact, pipeline_status: 'unknown_status' };
+  assert.equal(validatePhase4ArtifactSchema(badStatus).valid, false);
+
+  // Rejects privacy-violating payload containing raw candidate passwords
+  const privacyViolation = {
+    ...validArtifact,
+    candidates: ['password123', 'admin2026'],
+  };
+  const privRes = validatePhase4ArtifactSchema(privacyViolation);
+  assert.equal(privRes.valid, false);
+  assert.ok(privRes.errors.some(e => e.includes('Privacy violation')));
+});
+
+test('source-level privacy check: ensures no breach APIs or remote telemetry are imported', () => {
+  const foundationSource = readFileSync(resolve(process.cwd(), 'src/lib/foundation.ts'), 'utf-8');
+  
+  // Forbidden imports that would breach zero-egress or introduce remote lookups
+  assert.ok(!foundationSource.includes('@zxcvbn-ts/matcher-pwned'));
+  assert.ok(!foundationSource.includes('haveibeenpwned'));
+  assert.ok(!foundationSource.includes('hibp'));
+  assert.ok(!foundationSource.includes('api.pwnedpasswords.com'));
+  assert.ok(!foundationSource.includes('axios'));
+  assert.ok(!foundationSource.includes('fetch('));
+});
+
 

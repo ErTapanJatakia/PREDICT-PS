@@ -44,15 +44,15 @@ const TABS: TabItem[] = [
   {
     id: 'password-lab',
     label: 'Password Lab',
-    badge: 'Phase 2 Active',
-    badgeColor: 'text-emerald-300 bg-emerald-950/70 border-emerald-800/80',
+    badge: 'Phase 3 Active',
+    badgeColor: 'text-sky-300 bg-sky-950/70 border-sky-800/80',
     icon: KeyRound,
   },
   {
     id: 'experiments',
     label: 'Experiments',
-    badge: 'Baselines',
-    badgeColor: 'text-sky-300 bg-sky-950/70 border-sky-800/80',
+    badge: 'Phase 4 Active',
+    badgeColor: 'text-emerald-300 bg-emerald-950/70 border-emerald-800/80',
     icon: GitCompare,
   },
   {

@@ -45,10 +45,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
               <span>Phase Status</span>
             </div>
             <div className="text-slate-400">
-              Current: <strong className="text-emerald-400">Phase 2 (CSPRNG &amp; Patterns Completed)</strong>
+              Current: <strong className="text-sky-400">Phase 3 (Standard Baselines Completed)</strong>
             </div>
             <div className="text-slate-500">
-              Next Gate: Phase 3 Standard Baselines (Rules &amp; zxcvbn)
+              Next Gate: Phase 4 Character n-gram ML Baseline
             </div>
             <div className="pt-1 flex gap-2">
               <button

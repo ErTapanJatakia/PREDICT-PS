@@ -22,7 +22,16 @@ import {
   RepeatedSubstring,
   SequentialRun,
   KeyboardWalk,
+  ZxcvbnEvaluationResult,
+  NistGuidanceEvaluation,
+  Phase4Artifact,
+  Phase4Metrics,
+  Phase4PipelineStatus,
 } from '../types/research';
+
+import { ZxcvbnFactory, Options } from '@zxcvbn-ts/core';
+import { dictionary as commonDict, adjacencyGraphs } from '@zxcvbn-ts/language-common';
+import { dictionary as enDict, translations } from '@zxcvbn-ts/language-en';
 
 /**
  * Calculates the rejection-sampling bound to prevent modulo bias when sampling
@@ -489,6 +498,116 @@ export function analyzeExplainablePatterns(candidate: string): ExplainablePatter
   };
 }
 
+let cachedZxcvbn: ZxcvbnFactory | null = null;
+
+export function getZxcvbnInstance(): ZxcvbnFactory {
+  if (!cachedZxcvbn) {
+    const options = new Options({
+      dictionary: {
+        ...commonDict,
+        ...enDict,
+      },
+      graphs: adjacencyGraphs,
+      translations,
+    });
+    cachedZxcvbn = new ZxcvbnFactory(options);
+  }
+  return cachedZxcvbn;
+}
+
+const ZXCVBN_SCORE_LABELS: Record<0 | 1 | 2 | 3 | 4, string> = {
+  0: 'Very Guessable (Score 0/4 - High Risk)',
+  1: 'Somewhat Guessable (Score 1/4 - Weak)',
+  2: 'Modestly Resistant (Score 2/4 - Medium)',
+  3: 'Resistant to Offline Attacks (Score 3/4 - Strong)',
+  4: 'Very Resistant (Score 4/4 - Very Strong)',
+};
+
+/**
+ * Phase 3: Evaluates password candidate using local synchronous zxcvbn-ts graph matching.
+ * 
+ * STRICT PRIVACY & ZERO COST:
+ * - Runs 100% locally in browser memory using pre-bundled dictionaries and spatial graphs.
+ * - Zero network egress, zero breach lookups (no HIBP or remote queries), zero external telemetry.
+ * - Outputs model estimates, NOT calibrated compromise probabilities or time-to-crack guarantees.
+ */
+export function evaluateZxcvbn(password: string): ZxcvbnEvaluationResult {
+  if (!password) {
+    return {
+      score: 0,
+      scoreLabel: ZXCVBN_SCORE_LABELS[0],
+      guesses: 1,
+      guessesLog10: 0,
+      calcTimeMs: 0,
+      warning: 'Empty password candidate.',
+      suggestions: ['Enter at least one character to evaluate.'],
+      matchedPatterns: [],
+    };
+  }
+
+  const instance = getZxcvbnInstance();
+  const rawResult = instance.check(password);
+
+  const score = (Math.max(0, Math.min(4, Math.round(rawResult.score))) as 0 | 1 | 2 | 3 | 4);
+
+  const matchedPatterns = (rawResult.sequence || []).map((match) => ({
+    pattern: match.pattern || 'unknown',
+    token: match.token || '',
+  }));
+
+  return {
+    score,
+    scoreLabel: ZXCVBN_SCORE_LABELS[score] || `Score ${score}/4`,
+    guesses: rawResult.guesses || 1,
+    guessesLog10: Number((rawResult.guessesLog10 ?? 0).toFixed(2)),
+    calcTimeMs: rawResult.calcTime || 0,
+    warning: rawResult.feedback?.warning || null,
+    suggestions: rawResult.feedback?.suggestions || [],
+    matchedPatterns,
+  };
+}
+
+/**
+ * Phase 3: Evaluates candidate against official NIST SP 800-63B-4 Password Guidance.
+ * 
+ * IMPORTANT:
+ * - NIST SP 800-63B is guidance for password verifiers and enterprise authentication systems,
+ *   NOT a predictive strength-meter algorithm or continuous score.
+ * - Prohibits composition rules (mandatory uppercase, symbols, digits).
+ * - Recommends >= 15 characters for single-factor passwords, >= 8 characters for MFA.
+ * - Compromised password blocklist checking is required by NIST but NOT implemented in this
+ *   client-only prototype (zero remote breach queries permitted).
+ */
+export function evaluateNistGuidance(candidate: string): NistGuidanceEvaluation {
+  const candidateLength = candidate.length;
+  const meetsMfaMinLength = candidateLength >= 8;
+  const meetsSingleFactorMinLength = candidateLength >= 15;
+  const withinMaxAllowedLength = candidateLength <= 64;
+  const hasSpaceSupport = candidate.includes(' ');
+
+  let summaryGuidance = '';
+  if (candidateLength === 0) {
+    summaryGuidance = 'NIST SP 800-63B-4 requires minimum 15 characters for single-factor authenticators (or 8 characters when paired with MFA).';
+  } else if (meetsSingleFactorMinLength) {
+    summaryGuidance = 'Meets NIST SP 800-63B-4 recommended minimum length (≥15 characters for single-factor authenticators).';
+  } else if (meetsMfaMinLength) {
+    summaryGuidance = 'Meets NIST multi-factor authentication minimum (≥8 characters), but is below the single-factor recommendation (≥15 characters).';
+  } else {
+    summaryGuidance = 'Below NIST minimum length threshold (8 characters for MFA, 15 characters for single-factor).';
+  }
+
+  return {
+    candidateLength,
+    meetsMfaMinLength,
+    meetsSingleFactorMinLength,
+    withinMaxAllowedLength,
+    hasSpaceSupport,
+    blocklistCheckStatus: 'not-implemented-client-boundary',
+    compositionRuleNotice: 'NIST SP 800-63B Section 5.1.1.2 explicitly prohibits composition rules (e.g. requiring special characters, uppercase, or digits) because they foster predictable user substitution patterns.',
+    summaryGuidance,
+  };
+}
+
 /**
  * Calculates standard scientific classification metrics for password predictability research.
  * Positive Class = "Guessable / Human-Pattern Password"
@@ -709,16 +828,17 @@ export function getResearchPhases(): ResearchPhase[] {
       id: 3,
       codename: 'PHASE-3',
       title: 'Standard Baselines (Rules & zxcvbn)',
-      status: 'planned',
-      summary: 'Integrate client-side NIST SP 800-63B heuristic rules and local zxcvbn entropy graph baseline for benchmark comparisons.',
+      status: 'completed',
+      summary: 'Integrated client-side NIST SP 800-63B-4 guidance evaluation and local synchronous zxcvbn-ts graph matching baseline for benchmark comparisons.',
       deliverables: [
-        'Standard NIST length & dictionary heuristic baseline',
-        'Deterministic local zxcvbn matching graph analyzer',
-        'Execution latency profiling (<5ms budget)',
+        'Local synchronous zxcvbn-ts entropy & dictionary graph estimator',
+        'Official NIST SP 800-63B-4 verifier policy guidance panel',
+        'Tripartite analysis view in Password Lab (Structural, zxcvbn, NIST)',
+        'Execution latency profiling with zero remote API egress',
       ],
       privacySafeguards: [
         'Pre-compiled offline dictionary assets bundled locally',
-        'Zero API breach checks (HIBP or remote lookups prohibited)',
+        'Zero API breach checks (HIBP or remote lookups strictly avoided)',
       ],
       dependencies: [1, 2],
     },
@@ -726,16 +846,18 @@ export function getResearchPhases(): ResearchPhase[] {
       id: 4,
       codename: 'PHASE-4',
       title: 'Character n-gram ML Baseline',
-      status: 'planned',
-      summary: 'Implement a character-level n-gram Markov language model running client-side as the statistical machine-learning baseline.',
+      status: 'completed',
+      summary: 'Implement a reproducible character-level TF-IDF n-gram + Logistic Regression baseline in Python with strict split isolation, zero breach data, and sanitized artifact export.',
       deliverables: [
-        'Sparse character bi-gram and tri-gram transition matrix',
-        'Log-likelihood predictability scoring module',
-        'Offline pre-trained model weights (<100KB footprint)',
+        'Reproducible Python experiment pipeline (scikit-learn char TF-IDF + Logistic Regression)',
+        'Synthetic pattern dataset generator with documented label definitions and zero-leakage splits',
+        'Offline sanitized JSON artifact export (zero password material in exported telemetry)',
+        'Full security metrics suite: FSR, Macro-F1, PR-AUC, ROC-AUC, Brier score, and latency profile',
       ],
       privacySafeguards: [
-        'Model trained only on public sanitized non-sensitive research corpuses',
-        'Zero external inference endpoints',
+        'Zero leaked breach corpora or credential dumps permitted',
+        'Strict train/val/test deduplication preventing split contamination',
+        'Pure client presentation interface with schema-validated artifact rendering',
       ],
       dependencies: [1, 3],
     },
@@ -822,7 +944,7 @@ export function getBaselineSpecs(): BaselineModelSpec[] {
       computationalCost: 'ultra-low (<1ms)',
       explainability: 'high',
       privacyProfile: '100% Client-side, static rule definitions',
-      status: 'planned',
+      status: 'completed',
     },
     {
       id: 'baseline-zxcvbn',
@@ -832,17 +954,17 @@ export function getBaselineSpecs(): BaselineModelSpec[] {
       computationalCost: 'low (<10ms)',
       explainability: 'high',
       privacyProfile: '100% Client-side bundled frequency lists',
-      status: 'planned',
+      status: 'completed',
     },
     {
       id: 'baseline-ngram',
       name: 'Character n-gram Statistical Model',
       type: 'statistical-ml',
-      description: 'Character-level bi-gram / tri-gram Markov transition model estimating sequence log-probability to identify statistical human naming patterns.',
+      description: 'Character-level TF-IDF n-grams (2-5) + Logistic Regression baseline predicting predictable structural regularities vs high-entropy uniform randomness.',
       computationalCost: 'low (<10ms)',
       explainability: 'moderate',
-      privacyProfile: '100% Client-side sparse transition matrix',
-      status: 'planned',
+      privacyProfile: '100% Sanitized artifact, offline pipeline',
+      status: 'completed',
     },
     {
       id: 'proposed-fusion',
@@ -904,3 +1026,77 @@ export function getEvaluationMetricSpecs(): EvaluationMetricSpec[] {
     },
   ];
 }
+
+/**
+ * Calculates False-Strong Rate: FN / (TP + FN)
+ * High-security failure metric where a guessable credential is misclassified as resilient.
+ */
+export function calculateFalseStrongRate(falseNegatives: number, truePositives: number): number {
+  const totalPositives = truePositives + falseNegatives;
+  if (totalPositives === 0) return 0;
+  return falseNegatives / totalPositives;
+}
+
+/**
+ * Calculates False-Weak Rate: FP / (TN + FP)
+ * Usability friction metric where a resilient credential is misclassified as guessable.
+ */
+export function calculateFalseWeakRate(falsePositives: number, trueNegatives: number): number {
+  const totalNegatives = trueNegatives + falsePositives;
+  if (totalNegatives === 0) return 0;
+  return falsePositives / totalNegatives;
+}
+
+/**
+ * Validates a Phase 4 exported artifact JSON object against expected schema invariants.
+ * Strictly verifies zero raw password content and presence of all required fields.
+ */
+export function validatePhase4ArtifactSchema(data: unknown): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  if (!data || typeof data !== 'object') {
+    return { valid: false, errors: ['Artifact must be a non-null JSON object.'] };
+  }
+
+  const obj = data as Record<string, unknown>;
+
+  if (obj.schema_version !== 'predict_ps_phase4_v1') {
+    errors.push('Invalid or missing schema_version (expected "predict_ps_phase4_v1").');
+  }
+
+  const allowedStatuses = ['not_trained', 'synthetic_pipeline_validation', 'approved_research_evaluation'];
+  if (!allowedStatuses.includes(obj.pipeline_status as string)) {
+    errors.push(`Invalid pipeline_status (allowed: ${allowedStatuses.join(', ')}).`);
+  }
+
+  if (!obj.model_architecture || typeof obj.model_architecture !== 'object') {
+    errors.push('Missing or invalid model_architecture object.');
+  }
+
+  if (!obj.dataset_provenance || typeof obj.dataset_provenance !== 'object') {
+    errors.push('Missing or invalid dataset_provenance object.');
+  }
+
+  if (!obj.evaluation_metrics || typeof obj.evaluation_metrics !== 'object') {
+    errors.push('Missing or invalid evaluation_metrics object.');
+  } else {
+    const evalObj = obj.evaluation_metrics as Record<string, unknown>;
+    if (!evalObj.test_split || typeof evalObj.test_split !== 'object') {
+      errors.push('Missing evaluation_metrics.test_split object.');
+    }
+  }
+
+  // Security Invariant: Refuse any artifact containing raw candidate arrays or password text
+  const prohibitedKeys = ['candidates', 'passwords', 'raw_passwords', 'password_list', 'credentials'];
+  for (const key of prohibitedKeys) {
+    if (key in obj) {
+      errors.push(`Privacy violation: Prohibited key "${key}" detected in artifact.`);
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+

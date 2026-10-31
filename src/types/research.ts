@@ -144,3 +144,114 @@ export interface ExplainablePatternReport {
   structuralObservations: string[];
 }
 
+export interface ZxcvbnEvaluationResult {
+  score: 0 | 1 | 2 | 3 | 4;
+  scoreLabel: string;
+  guesses: number;
+  guessesLog10: number;
+  calcTimeMs: number;
+  warning: string | null;
+  suggestions: string[];
+  matchedPatterns: Array<{
+    pattern: string;
+    token: string;
+  }>;
+}
+
+export interface NistGuidanceEvaluation {
+  candidateLength: number;
+  meetsMfaMinLength: boolean; // >= 8 chars
+  meetsSingleFactorMinLength: boolean; // >= 15 chars
+  withinMaxAllowedLength: boolean; // <= 64+ chars
+  hasSpaceSupport: boolean;
+  blocklistCheckStatus: 'not-implemented-client-boundary';
+  compositionRuleNotice: string;
+  summaryGuidance: string;
+}
+
+export type Phase4PipelineStatus = 'not_trained' | 'synthetic_pipeline_validation' | 'approved_research_evaluation';
+
+export interface Phase4ConfusionMatrix {
+  true_positives: number;
+  false_positives: number;
+  true_negatives: number;
+  false_negatives: number;
+  total: number;
+}
+
+export interface Phase4Metrics {
+  confusion_matrix: Phase4ConfusionMatrix;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  macro_f1: number;
+  roc_auc: number;
+  pr_auc: number;
+  brier_score: number;
+  false_strong_rate: number;
+  false_weak_rate: number;
+}
+
+export interface Phase4ModelArchitecture {
+  name: string;
+  type: string;
+  feature_extractor: string;
+  ngram_range: [number, number];
+  min_df: number;
+  sublinear_tf: boolean;
+  classifier: string;
+  solver: string;
+  C: number;
+  max_iter: number;
+  random_state: number;
+  vocabulary_size: number;
+}
+
+export interface Phase4DatasetProvenance {
+  source: string;
+  data_policy: string;
+  total_samples: number;
+  splits: {
+    train_count: number;
+    train_pos: number;
+    train_neg: number;
+    val_count: number;
+    val_pos: number;
+    val_neg: number;
+    test_count: number;
+    test_pos: number;
+    test_neg: number;
+  };
+  positive_label_definition: string;
+  negative_label_definition: string;
+  leakage_safeguards: string[];
+}
+
+export interface Phase4ComputationalProfile {
+  train_duration_ms: number;
+  inference_latency_microseconds: number;
+  hardware_platform: string;
+  python_version: string;
+  dependencies: {
+    scikit_learn: string;
+    numpy: string;
+  };
+}
+
+export interface Phase4Artifact {
+  schema_version: string;
+  pipeline_status: Phase4PipelineStatus;
+  timestamp_utc: string;
+  model_architecture: Phase4ModelArchitecture;
+  dataset_provenance: Phase4DatasetProvenance;
+  evaluation_metrics: {
+    threshold: number;
+    test_split: Phase4Metrics;
+    val_split?: Phase4Metrics;
+  };
+  computational_profile: Phase4ComputationalProfile;
+  limitations_and_caveats: string[];
+}
+
+
+

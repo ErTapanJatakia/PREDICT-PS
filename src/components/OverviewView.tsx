@@ -208,7 +208,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab }) => 
               <Fingerprint className="w-3.5 h-3.5" /> Volatile In-Memory Local Processing
             </span>
             <p className="text-slate-400">
-              In Phase 2, generation and pattern analysis execute 100% in volatile browser memory. Zero persistence (no localStorage/sessionStorage/cookies), zero network egress, and explicit advisory to test only research candidates rather than real account passwords.
+              In Phase 3, generation, pattern extraction, zxcvbn-ts graph matching, and NIST policy assessment execute 100% in volatile browser memory. Zero persistence (no localStorage/sessionStorage/cookies), zero network egress, and explicit advisory to test only research candidates rather than real account passwords.
             </p>
           </div>
 
@@ -239,7 +239,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab }) => 
             onClick={() => onNavigateTab('password-lab')}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition-colors"
           >
-            <span>Inspect Phase 2 Password Lab Plan</span>
+            <span>Launch Phase 3 Password Lab (Baselines Active)</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
           <button

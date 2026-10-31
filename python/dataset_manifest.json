@@ -1,0 +1,68 @@
+{
+  "manifest_id": "PREDICT_PS_SYNTHETIC_DATASET_V1",
+  "generated_at": "2026-10-31T03:39:00Z",
+  "provenance": {
+    "generator_type": "Deterministic PRNG (Python random.Random)",
+    "generator_seed": 42,
+    "source": "Synthetically constructed pattern categories",
+    "breach_corpora_used": false,
+    "user_data_used": false,
+    "external_downloads": false,
+    "license": "Apache-2.0"
+  },
+  "pattern_categories": [
+    {
+      "category": "dict_suffix",
+      "label": 1,
+      "description": "Common English dictionary base word concatenated with predictable numerical or symbol affix, with optional leetspeak substitutions.",
+      "rationale": "Models the widespread human tendency to satisfy complexity policies by appending numbers or symbols to familiar dictionary roots."
+    },
+    {
+      "category": "sequential",
+      "label": 1,
+      "description": "Ascending or descending contiguous sequences from standard numeric (0-9) or alphabetic (a-z) alphabets.",
+      "rationale": "Captures low-effort sequential keystroke patterns."
+    },
+    {
+      "category": "keyboard_walk",
+      "label": 1,
+      "description": "Contiguous horizontal rows from standard QWERTY keyboard layouts.",
+      "rationale": "Represents spatial motor memory patterns that bypass random character selection."
+    },
+    {
+      "category": "repeated_phrase",
+      "label": 1,
+      "description": "Single repeated characters or cyclic repetition of short substrings.",
+      "rationale": "Captures low Kolmogorov-complexity repetition."
+    },
+    {
+      "category": "high_entropy_uniform",
+      "label": 0,
+      "description": "Independently uniform random selection across full 4-class charset (lowercase, uppercase, digits, punctuation) of length 12-20.",
+      "rationale": "Acts as empirical negative class ground truth for non-guessable, structurally uncorrelated character sequences."
+    }
+  ],
+  "label_definition": {
+    "positive_class_1": "Guessable / Predictable heuristic pattern",
+    "negative_class_0": "High-entropy uniform random string",
+    "classification_objective": "Discriminate structured human-like pattern regularities from high-entropy uniform randomness purely using character n-gram frequencies."
+  },
+  "deduplication_and_split_policy": {
+    "exact_deduplication": true,
+    "case_and_whitespace_normalized_deduplication": true,
+    "split_ratios": {
+      "train": 0.70,
+      "validation": 0.15,
+      "test": 0.15
+    },
+    "leakage_invariants": [
+      "No string present in train split may appear in validation or test split",
+      "No normalized equivalent may cross split boundaries",
+      "Vectorization fitted strictly on train split"
+    ]
+  },
+  "limitations": [
+    "Synthetic generation serves as an empirical pipeline validation benchmark; real-world human password choices are influenced by cultural, temporal, and semantic context not fully captured by synthetic grammars.",
+    "The baseline is intended as a scientific comparator for Phase 5 feature fusion, not a production authentication validator."
+  ]
+}
