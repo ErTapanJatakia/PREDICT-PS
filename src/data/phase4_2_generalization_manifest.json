@@ -1,0 +1,1286 @@
+{
+  "schema_version": "predict_ps_phase4_2_2_v1",
+  "manifest_type": "predict_ps_generalization_audit",
+  "timestamp_utc": "2026-11-01T18:28:36.004951+00:00",
+  "phase": "Phase 4.2.2 \u2014 Lexical Leakage, Template Generalization & Independent Generator Audit",
+  "environment": {
+    "python_version": "3.10.12",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.36",
+    "scikit_learn_version": "1.7.2",
+    "numpy_version": "2.2.6",
+    "scipy_version": "1.15.3"
+  },
+  "generalization_audits": {
+    "lexical_group_isolation": {
+      "unique_positive_words_total": 296,
+      "train_words_count": 207,
+      "val_words_count": 44,
+      "test_words_count": 45,
+      "shared_train_val_words": 0,
+      "shared_train_test_words": 0,
+      "shared_val_test_words": 0,
+      "lexical_isolation_verified": true
+    },
+    "template_family_isolation": {
+      "train_families": [
+        "PrefixPadded",
+        "SuffixPadded"
+      ],
+      "val_families": [
+        "WordSymbolsSuffix"
+      ],
+      "test_held_out_families": [
+        "PrefixSymbols"
+      ],
+      "shared_train_test_families": 0,
+      "template_isolation_verified": true
+    },
+    "independent_generator_v2_provenance": {
+      "generator_type": "IndependentGeneratorV2_PhoneticCompounding",
+      "construction_logic": "Phonetic 4-letter stem pairing with interleaved, mirrored bracket, and sandwich affix geometries",
+      "length_matching": "Exact 14 characters for positive and negative classes",
+      "composition_matching": "Exact 8 lowercase, 2 uppercase, 2 digits, 2 symbols for positive and negative classes",
+      "sample_count": 1000,
+      "seed": 9999,
+      "metadata_leakage_prevented": true
+    }
+  },
+  "experiments": {
+    "exp_g1_random_split_baseline": {
+      "experiment_id": "exp_g1_random_split_baseline",
+      "title": "Exp G1: Random Stratified Split Baseline",
+      "status": "executed_successfully",
+      "description": "Character n-gram baseline on randomly partitioned dual-controlled dataset (length 14, 8L/2U/2D/2S).",
+      "split_type": "random_stratified",
+      "evaluation_scope": "In-Distribution (Random Split)",
+      "threshold": 0.48,
+      "metrics": {
+        "decision_threshold": 0.48,
+        "confusion_matrix": {
+          "true_positives": 299,
+          "false_positives": 1,
+          "true_negatives": 299,
+          "false_negatives": 1,
+          "total": 600
+        },
+        "accuracy": 0.9967,
+        "balanced_accuracy": 0.9967,
+        "precision": 0.9967,
+        "recall": 0.9967,
+        "specificity": 0.9967,
+        "negative_predictive_value": 0.9967,
+        "macro_f1": 0.9967,
+        "matthews_correlation_coefficient": 0.9933,
+        "roc_auc": 1.0,
+        "pr_auc": 1.0,
+        "brier_score": 0.048,
+        "false_strong_rate": 0.0033,
+        "false_weak_rate": 0.0033,
+        "support": {
+          "positive_class": 300,
+          "negative_class": 300
+        },
+        "predicted_positive_rate": 0.5,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.2044,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 174,
+              "confidence": 0.1606,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 111,
+              "confidence": 0.2679,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 16,
+              "confidence": 0.4358,
+              "empirical_accuracy": 0.0625
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 146,
+              "confidence": 0.7515,
+              "empirical_accuracy": 1.0
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 153,
+              "confidence": 0.8515,
+              "empirical_accuracy": 1.0
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 0.9917,
+            "upper_95": 1.0,
+            "mean": 0.9965
+          },
+          "precision": {
+            "lower_95": 0.9876,
+            "upper_95": 1.0,
+            "mean": 0.9965
+          },
+          "recall": {
+            "lower_95": 0.9894,
+            "upper_95": 1.0,
+            "mean": 0.9964
+          },
+          "macro_f1": {
+            "lower_95": 0.9916,
+            "upper_95": 1.0,
+            "mean": 0.9965
+          },
+          "false_strong_rate": {
+            "lower_95": 0.0,
+            "upper_95": 0.0106,
+            "mean": 0.0036
+          },
+          "pr_auc": {
+            "lower_95": 0.9999,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "roc_auc": {
+            "lower_95": 0.9999,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "requested_resamples": 1000,
+            "valid_resamples": 1000,
+            "skipped_single_class_resamples": 0,
+            "valid_resamples_by_metric": {
+              "accuracy": 1000,
+              "precision": 1000,
+              "recall": 1000,
+              "macro_f1": 1000,
+              "false_strong_rate": 1000,
+              "roc_auc": 1000,
+              "pr_auc": 1000
+            },
+            "seed": 42,
+            "threshold_used": 0.48,
+            "threshold_policy": "fixed_validation_selected",
+            "confidence_level": 0.95,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "vocabulary_size": 9463,
+      "training_time_ms": 230.28,
+      "inference_latency_us": 29.01
+    },
+    "exp_g2_lexical_disjoint": {
+      "experiment_id": "exp_g2_lexical_disjoint",
+      "title": "Exp G2: Lexical-Group-Disjoint Evaluation",
+      "status": "executed_successfully",
+      "description": "Character n-gram baseline evaluated on completely unseen dictionary words (0 word overlap between train, val, and test).",
+      "split_type": "lexical_group_disjoint",
+      "evaluation_scope": "Unseen Lexical Words",
+      "threshold": 0.43,
+      "metrics": {
+        "decision_threshold": 0.43,
+        "confusion_matrix": {
+          "true_positives": 304,
+          "false_positives": 1,
+          "true_negatives": 312,
+          "false_negatives": 9,
+          "total": 626
+        },
+        "accuracy": 0.984,
+        "balanced_accuracy": 0.984,
+        "precision": 0.9967,
+        "recall": 0.9712,
+        "specificity": 0.9968,
+        "negative_predictive_value": 0.972,
+        "macro_f1": 0.984,
+        "matthews_correlation_coefficient": 0.9684,
+        "roc_auc": 0.9986,
+        "pr_auc": 0.9987,
+        "brier_score": 0.0646,
+        "false_strong_rate": 0.0288,
+        "false_weak_rate": 0.0032,
+        "support": {
+          "positive_class": 313,
+          "negative_class": 313
+        },
+        "predicted_positive_rate": 0.4872,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.2121,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 188,
+              "confidence": 0.1574,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 129,
+              "confidence": 0.2672,
+              "empirical_accuracy": 0.0543
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 40,
+              "confidence": 0.5186,
+              "empirical_accuracy": 0.925
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 158,
+              "confidence": 0.7262,
+              "empirical_accuracy": 1.0
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 111,
+              "confidence": 0.8543,
+              "empirical_accuracy": 1.0
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 0.9744,
+            "upper_95": 0.9936,
+            "mean": 0.9839
+          },
+          "precision": {
+            "lower_95": 0.9897,
+            "upper_95": 1.0,
+            "mean": 0.9967
+          },
+          "recall": {
+            "lower_95": 0.951,
+            "upper_95": 0.9898,
+            "mean": 0.9711
+          },
+          "macro_f1": {
+            "lower_95": 0.9743,
+            "upper_95": 0.9936,
+            "mean": 0.9839
+          },
+          "false_strong_rate": {
+            "lower_95": 0.0102,
+            "upper_95": 0.049,
+            "mean": 0.0289
+          },
+          "pr_auc": {
+            "lower_95": 0.9973,
+            "upper_95": 0.9997,
+            "mean": 0.9987
+          },
+          "roc_auc": {
+            "lower_95": 0.9972,
+            "upper_95": 0.9997,
+            "mean": 0.9986
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "requested_resamples": 1000,
+            "valid_resamples": 1000,
+            "skipped_single_class_resamples": 0,
+            "valid_resamples_by_metric": {
+              "accuracy": 1000,
+              "precision": 1000,
+              "recall": 1000,
+              "macro_f1": 1000,
+              "false_strong_rate": 1000,
+              "roc_auc": 1000,
+              "pr_auc": 1000
+            },
+            "seed": 42,
+            "threshold_used": 0.43,
+            "threshold_policy": "fixed_validation_selected",
+            "confidence_level": 0.95,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "vocabulary_size": 8962,
+      "training_time_ms": 177.63,
+      "inference_latency_us": 29.88
+    },
+    "exp_g3_template_disjoint": {
+      "experiment_id": "exp_g3_template_disjoint",
+      "title": "Exp G3: Template-Family-Disjoint Evaluation",
+      "status": "executed_successfully",
+      "description": "Character n-gram baseline trained on SuffixPadded and PrefixPadded; evaluated on unseen held-out PrefixSymbols template family.",
+      "split_type": "template_family_disjoint",
+      "evaluation_scope": "Held-Out Template Family",
+      "threshold": 0.49,
+      "metrics": {
+        "decision_threshold": 0.49,
+        "confusion_matrix": {
+          "true_positives": 473,
+          "false_positives": 0,
+          "true_negatives": 475,
+          "false_negatives": 2,
+          "total": 950
+        },
+        "accuracy": 0.9979,
+        "balanced_accuracy": 0.9979,
+        "precision": 1.0,
+        "recall": 0.9958,
+        "specificity": 1.0,
+        "negative_predictive_value": 0.9958,
+        "macro_f1": 0.9979,
+        "matthews_correlation_coefficient": 0.9958,
+        "roc_auc": 0.9999,
+        "pr_auc": 0.9999,
+        "brier_score": 0.0639,
+        "false_strong_rate": 0.0042,
+        "false_weak_rate": 0.0,
+        "support": {
+          "positive_class": 475,
+          "negative_class": 475
+        },
+        "predicted_positive_rate": 0.4979,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.2314,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 160,
+              "confidence": 0.1738,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 306,
+              "confidence": 0.2625,
+              "empirical_accuracy": 0.0033
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 32,
+              "confidence": 0.5198,
+              "empirical_accuracy": 0.6875
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 325,
+              "confidence": 0.7304,
+              "empirical_accuracy": 1.0
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 127,
+              "confidence": 0.8451,
+              "empirical_accuracy": 1.0
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 0.9947,
+            "upper_95": 1.0,
+            "mean": 0.9979
+          },
+          "precision": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "recall": {
+            "lower_95": 0.9896,
+            "upper_95": 1.0,
+            "mean": 0.9958
+          },
+          "macro_f1": {
+            "lower_95": 0.9947,
+            "upper_95": 1.0,
+            "mean": 0.9979
+          },
+          "false_strong_rate": {
+            "lower_95": 0.0,
+            "upper_95": 0.0104,
+            "mean": 0.0042
+          },
+          "pr_auc": {
+            "lower_95": 0.9998,
+            "upper_95": 1.0,
+            "mean": 0.9999
+          },
+          "roc_auc": {
+            "lower_95": 0.9998,
+            "upper_95": 1.0,
+            "mean": 0.9999
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "requested_resamples": 1000,
+            "valid_resamples": 1000,
+            "skipped_single_class_resamples": 0,
+            "valid_resamples_by_metric": {
+              "accuracy": 1000,
+              "precision": 1000,
+              "recall": 1000,
+              "macro_f1": 1000,
+              "false_strong_rate": 1000,
+              "roc_auc": 1000,
+              "pr_auc": 1000
+            },
+            "seed": 42,
+            "threshold_used": 0.49,
+            "threshold_policy": "fixed_validation_selected",
+            "confidence_level": 0.95,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "vocabulary_size": 7771,
+      "training_time_ms": 132.86,
+      "inference_latency_us": 28.82
+    },
+    "exp_g4_independent_v2_holdout": {
+      "experiment_id": "exp_g4_independent_v2_holdout",
+      "title": "Exp G4: Independent Generator V2 Evaluation",
+      "status": "executed_successfully",
+      "description": "Frozen Exp G1 model evaluated against independently designed generator with phonetic stems and novel affix geometries.",
+      "split_type": "independent_generator_v2",
+      "evaluation_scope": "Independent Synthetic Distribution",
+      "threshold": 0.48,
+      "metrics": {
+        "decision_threshold": 0.48,
+        "confusion_matrix": {
+          "true_positives": 254,
+          "false_positives": 4,
+          "true_negatives": 496,
+          "false_negatives": 246,
+          "total": 1000
+        },
+        "accuracy": 0.75,
+        "balanced_accuracy": 0.75,
+        "precision": 0.9845,
+        "recall": 0.508,
+        "specificity": 0.992,
+        "negative_predictive_value": 0.6685,
+        "macro_f1": 0.7344,
+        "matthews_correlation_coefficient": 0.5714,
+        "roc_auc": 0.9643,
+        "pr_auc": 0.9636,
+        "brier_score": 0.1653,
+        "false_strong_rate": 0.492,
+        "false_weak_rate": 0.008,
+        "support": {
+          "positive_class": 500,
+          "negative_class": 500
+        },
+        "predicted_positive_rate": 0.258,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.2271,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 265,
+              "confidence": 0.1573,
+              "empirical_accuracy": 0.0113
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 369,
+              "confidence": 0.285,
+              "empirical_accuracy": 0.3902
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 253,
+              "confidence": 0.4972,
+              "empirical_accuracy": 0.9486
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 103,
+              "confidence": 0.6715,
+              "empirical_accuracy": 1.0
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 10,
+              "confidence": 0.844,
+              "empirical_accuracy": 1.0
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 0.722,
+            "upper_95": 0.777,
+            "mean": 0.7498
+          },
+          "precision": {
+            "lower_95": 0.969,
+            "upper_95": 0.9963,
+            "mean": 0.9843
+          },
+          "recall": {
+            "lower_95": 0.4633,
+            "upper_95": 0.5514,
+            "mean": 0.5081
+          },
+          "macro_f1": {
+            "lower_95": 0.7045,
+            "upper_95": 0.762,
+            "mean": 0.7341
+          },
+          "false_strong_rate": {
+            "lower_95": 0.4486,
+            "upper_95": 0.5367,
+            "mean": 0.4919
+          },
+          "pr_auc": {
+            "lower_95": 0.952,
+            "upper_95": 0.9752,
+            "mean": 0.9637
+          },
+          "roc_auc": {
+            "lower_95": 0.954,
+            "upper_95": 0.974,
+            "mean": 0.9643
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "requested_resamples": 1000,
+            "valid_resamples": 1000,
+            "skipped_single_class_resamples": 0,
+            "valid_resamples_by_metric": {
+              "accuracy": 1000,
+              "precision": 1000,
+              "recall": 1000,
+              "macro_f1": 1000,
+              "false_strong_rate": 1000,
+              "roc_auc": 1000,
+              "pr_auc": 1000
+            },
+            "seed": 42,
+            "threshold_used": 0.48,
+            "threshold_policy": "fixed_validation_selected",
+            "confidence_level": 0.95,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "vocabulary_size": 9463,
+      "inference_latency_us": 27.59
+    },
+    "exp_g5_lexical_diagnostic_random": {
+      "experiment_id": "exp_g5_lexical_diagnostic_random",
+      "title": "Exp G5: Lexical-Only Diagnostic (Random Split)",
+      "status": "executed_successfully",
+      "description": "Evaluates how much discrimination is driven by memorized dictionary words when words overlap across splits.",
+      "split_type": "diagnostic_random_split",
+      "evaluation_scope": "Memorization Diagnostic",
+      "threshold": 0.1,
+      "metrics": {
+        "decision_threshold": 0.1,
+        "confusion_matrix": {
+          "true_positives": 298,
+          "false_positives": 0,
+          "true_negatives": 300,
+          "false_negatives": 2,
+          "total": 600
+        },
+        "accuracy": 0.9967,
+        "balanced_accuracy": 0.9967,
+        "precision": 1.0,
+        "recall": 0.9933,
+        "specificity": 1.0,
+        "negative_predictive_value": 0.9934,
+        "macro_f1": 0.9967,
+        "matthews_correlation_coefficient": 0.9934,
+        "roc_auc": 0.9967,
+        "pr_auc": 0.9967,
+        "brier_score": 0.0034,
+        "false_strong_rate": 0.0067,
+        "false_weak_rate": 0.0,
+        "support": {
+          "positive_class": 300,
+          "negative_class": 300
+        },
+        "predicted_positive_rate": 0.4967,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.0075,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 302,
+              "confidence": 0.0049,
+              "empirical_accuracy": 0.0066
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 0,
+              "confidence": 0.3,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 0,
+              "confidence": 0.5,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 0,
+              "confidence": 0.7,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 298,
+              "confidence": 0.9867,
+              "empirical_accuracy": 1.0
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 0.9917,
+            "upper_95": 1.0,
+            "mean": 0.9966
+          },
+          "precision": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "recall": {
+            "lower_95": 0.9832,
+            "upper_95": 1.0,
+            "mean": 0.9933
+          },
+          "macro_f1": {
+            "lower_95": 0.9917,
+            "upper_95": 1.0,
+            "mean": 0.9966
+          },
+          "false_strong_rate": {
+            "lower_95": 0.0,
+            "upper_95": 0.0168,
+            "mean": 0.0067
+          },
+          "pr_auc": {
+            "lower_95": 0.9915,
+            "upper_95": 1.0,
+            "mean": 0.9966
+          },
+          "roc_auc": {
+            "lower_95": 0.9906,
+            "upper_95": 1.0,
+            "mean": 0.9967
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "requested_resamples": 1000,
+            "valid_resamples": 1000,
+            "skipped_single_class_resamples": 0,
+            "valid_resamples_by_metric": {
+              "accuracy": 1000,
+              "precision": 1000,
+              "recall": 1000,
+              "macro_f1": 1000,
+              "false_strong_rate": 1000,
+              "roc_auc": 1000,
+              "pr_auc": 1000
+            },
+            "seed": 42,
+            "threshold_used": 0.1,
+            "threshold_policy": "fixed_validation_selected",
+            "confidence_level": 0.95,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "training_time_ms": 1013.51
+    },
+    "exp_g6_lexical_diagnostic_disjoint": {
+      "experiment_id": "exp_g6_lexical_diagnostic_disjoint",
+      "title": "Exp G6: Lexical-Only Diagnostic (Lexical-Disjoint)",
+      "status": "executed_successfully",
+      "description": "Demonstrates collapse of dictionary memorization model when test dictionary words were never seen in training.",
+      "split_type": "diagnostic_lexical_disjoint",
+      "evaluation_scope": "Memorization Collapse Diagnostic",
+      "threshold": 0.1,
+      "metrics": {
+        "decision_threshold": 0.1,
+        "confusion_matrix": {
+          "true_positives": 0,
+          "false_positives": 0,
+          "true_negatives": 313,
+          "false_negatives": 313,
+          "total": 626
+        },
+        "accuracy": 0.5,
+        "balanced_accuracy": 0.5,
+        "precision": 0.0,
+        "recall": 0.0,
+        "specificity": 1.0,
+        "negative_predictive_value": 0.5,
+        "macro_f1": 0.3333,
+        "matthews_correlation_coefficient": 0.0,
+        "roc_auc": 0.5,
+        "pr_auc": 0.5,
+        "brier_score": 0.4951,
+        "false_strong_rate": 1.0,
+        "false_weak_rate": 0.0,
+        "support": {
+          "positive_class": 313,
+          "negative_class": 313
+        },
+        "predicted_positive_rate": 0.0,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.4951,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 626,
+              "confidence": 0.0049,
+              "empirical_accuracy": 0.5
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 0,
+              "confidence": 0.3,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 0,
+              "confidence": 0.5,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 0,
+              "confidence": 0.7,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 0,
+              "confidence": 0.9,
+              "empirical_accuracy": 0.0
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 0.4585,
+            "upper_95": 0.5383,
+            "mean": 0.4988
+          },
+          "precision": {
+            "lower_95": 0.0,
+            "upper_95": 0.0,
+            "mean": 0.0
+          },
+          "recall": {
+            "lower_95": 0.0,
+            "upper_95": 0.0,
+            "mean": 0.0
+          },
+          "macro_f1": {
+            "lower_95": 0.3143,
+            "upper_95": 0.3499,
+            "mean": 0.3327
+          },
+          "false_strong_rate": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "pr_auc": {
+            "lower_95": 0.4617,
+            "upper_95": 0.5415,
+            "mean": 0.5012
+          },
+          "roc_auc": {
+            "lower_95": 0.4536,
+            "upper_95": 0.541,
+            "mean": 0.4994
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "requested_resamples": 1000,
+            "valid_resamples": 1000,
+            "skipped_single_class_resamples": 0,
+            "valid_resamples_by_metric": {
+              "accuracy": 1000,
+              "precision": 1000,
+              "recall": 1000,
+              "macro_f1": 1000,
+              "false_strong_rate": 1000,
+              "roc_auc": 1000,
+              "pr_auc": 1000
+            },
+            "seed": 42,
+            "threshold_used": 0.1,
+            "threshold_policy": "fixed_validation_selected",
+            "confidence_level": 0.95,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "training_time_ms": 960.3
+    },
+    "exp_g7_position_diagnostic_standard": {
+      "experiment_id": "exp_g7_position_diagnostic_standard",
+      "title": "Exp G7: Position-Aware Diagnostic (Standard Split)",
+      "status": "executed_successfully",
+      "description": "Measures discrimination achievable from character class positions (slots) without any character identity knowledge.",
+      "split_type": "diagnostic_position_standard",
+      "evaluation_scope": "Positional Shortcut Diagnostic",
+      "threshold": 0.63,
+      "metrics": {
+        "decision_threshold": 0.63,
+        "confusion_matrix": {
+          "true_positives": 300,
+          "false_positives": 3,
+          "true_negatives": 297,
+          "false_negatives": 0,
+          "total": 600
+        },
+        "accuracy": 0.995,
+        "balanced_accuracy": 0.995,
+        "precision": 0.9901,
+        "recall": 1.0,
+        "specificity": 0.99,
+        "negative_predictive_value": 1.0,
+        "macro_f1": 0.995,
+        "matthews_correlation_coefficient": 0.99,
+        "roc_auc": 1.0,
+        "pr_auc": 1.0,
+        "brier_score": 0.0034,
+        "false_strong_rate": 0.0,
+        "false_weak_rate": 0.01,
+        "support": {
+          "positive_class": 300,
+          "negative_class": 300
+        },
+        "predicted_positive_rate": 0.505,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.0068,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 295,
+              "confidence": 0.0016,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 2,
+              "confidence": 0.2123,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 0,
+              "confidence": 0.5,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 2,
+              "confidence": 0.7182,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 301,
+              "confidence": 0.9908,
+              "empirical_accuracy": 0.9967
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 0.99,
+            "upper_95": 1.0,
+            "mean": 0.995
+          },
+          "precision": {
+            "lower_95": 0.9787,
+            "upper_95": 1.0,
+            "mean": 0.9902
+          },
+          "recall": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "macro_f1": {
+            "lower_95": 0.99,
+            "upper_95": 1.0,
+            "mean": 0.995
+          },
+          "false_strong_rate": {
+            "lower_95": 0.0,
+            "upper_95": 0.0,
+            "mean": 0.0
+          },
+          "pr_auc": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "roc_auc": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "requested_resamples": 1000,
+            "valid_resamples": 1000,
+            "skipped_single_class_resamples": 0,
+            "valid_resamples_by_metric": {
+              "accuracy": 1000,
+              "precision": 1000,
+              "recall": 1000,
+              "macro_f1": 1000,
+              "false_strong_rate": 1000,
+              "roc_auc": 1000,
+              "pr_auc": 1000
+            },
+            "seed": 42,
+            "threshold_used": 0.63,
+            "threshold_policy": "fixed_validation_selected",
+            "confidence_level": 0.95,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "training_time_ms": 42.43
+    },
+    "exp_g8_position_diagnostic_heldout": {
+      "experiment_id": "exp_g8_position_diagnostic_heldout",
+      "title": "Exp G8: Position-Aware Diagnostic (Held-Out Templates)",
+      "status": "executed_successfully",
+      "description": "Evaluates positional heuristic performance when tested on a held-out template family with different slot geometry.",
+      "split_type": "diagnostic_position_heldout",
+      "evaluation_scope": "Positional Geometry Shift Diagnostic",
+      "threshold": 0.82,
+      "metrics": {
+        "decision_threshold": 0.82,
+        "confusion_matrix": {
+          "true_positives": 0,
+          "false_positives": 0,
+          "true_negatives": 475,
+          "false_negatives": 475,
+          "total": 950
+        },
+        "accuracy": 0.5,
+        "balanced_accuracy": 0.5,
+        "precision": 0.0,
+        "recall": 0.0,
+        "specificity": 1.0,
+        "negative_predictive_value": 0.5,
+        "macro_f1": 0.3333,
+        "matthews_correlation_coefficient": 0.0,
+        "roc_auc": 0.7158,
+        "pr_auc": 0.7787,
+        "brier_score": 0.5003,
+        "false_strong_rate": 1.0,
+        "false_weak_rate": 0.0,
+        "support": {
+          "positive_class": 475,
+          "negative_class": 475
+        },
+        "predicted_positive_rate": 0.0,
+        "calibration": {
+          "n_bins": 5,
+          "expected_calibration_error": 0.4998,
+          "bins": [
+            {
+              "bin_index": 0,
+              "range": [
+                0.0,
+                0.2
+              ],
+              "count": 946,
+              "confidence": 0.0017,
+              "empirical_accuracy": 0.5021
+            },
+            {
+              "bin_index": 1,
+              "range": [
+                0.2,
+                0.4
+              ],
+              "count": 3,
+              "confidence": 0.2841,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 2,
+              "range": [
+                0.4,
+                0.6
+              ],
+              "count": 1,
+              "confidence": 0.558,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 3,
+              "range": [
+                0.6,
+                0.8
+              ],
+              "count": 0,
+              "confidence": 0.7,
+              "empirical_accuracy": 0.0
+            },
+            {
+              "bin_index": 4,
+              "range": [
+                0.8,
+                1.0
+              ],
+              "count": 0,
+              "confidence": 0.9,
+              "empirical_accuracy": 0.0
+            }
+          ],
+          "calibration_caveat": "Logistic regression predicted probabilities reflect model confidence on the synthetic feature space, not a calibrated empirical probability of real-world offline password cracking."
+        },
+        "confidence_intervals_95": {
+          "accuracy": {
+            "lower_95": 0.4694,
+            "upper_95": 0.5316,
+            "mean": 0.5006
+          },
+          "precision": {
+            "lower_95": 0.0,
+            "upper_95": 0.0,
+            "mean": 0.0
+          },
+          "recall": {
+            "lower_95": 0.0,
+            "upper_95": 0.0,
+            "mean": 0.0
+          },
+          "macro_f1": {
+            "lower_95": 0.3195,
+            "upper_95": 0.3471,
+            "mean": 0.3335
+          },
+          "false_strong_rate": {
+            "lower_95": 1.0,
+            "upper_95": 1.0,
+            "mean": 1.0
+          },
+          "pr_auc": {
+            "lower_95": 0.7445,
+            "upper_95": 0.8107,
+            "mean": 0.7787
+          },
+          "roc_auc": {
+            "lower_95": 0.6771,
+            "upper_95": 0.7597,
+            "mean": 0.7165
+          },
+          "methodology": {
+            "technique": "Non-parametric empirical percentile bootstrap",
+            "requested_resamples": 1000,
+            "valid_resamples": 1000,
+            "skipped_single_class_resamples": 0,
+            "valid_resamples_by_metric": {
+              "accuracy": 1000,
+              "precision": 1000,
+              "recall": 1000,
+              "macro_f1": 1000,
+              "false_strong_rate": 1000,
+              "roc_auc": 1000,
+              "pr_auc": 1000
+            },
+            "seed": 42,
+            "threshold_used": 0.82,
+            "threshold_policy": "fixed_validation_selected",
+            "confidence_level": 0.95,
+            "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
+          }
+        }
+      },
+      "training_time_ms": 28.72
+    }
+  },
+  "methodological_conclusions": [
+    "Lexical Group Isolation (Exp G2): When underlying dictionary words are held strictly disjoint across splits (0 word overlap), character n-gram models experience performance shifts depending on shared subword stems, distinguishing genuine subword representation from pure word memorization.",
+    "Lexical-Only Diagnostic (Exp G5 vs Exp G6): On random splits where words repeat, a lexical matching heuristic achieves high accuracy. On lexical-disjoint splits, accuracy collapses to near chance, proving that random splits induce dictionary memorization shortcuts.",
+    "Template-Family Generalization (Exp G3): When an entire template family is held out, sequence models relying on specific positional affixes suffer degradation, exposing template-bound shortcut learning.",
+    "Independent Generator V2 (Exp G4): Evaluating against an independently designed generator with novel phonetic roots and non-standard geometries confirms generator dependence.",
+    "Conclusion for Central Hypothesis: These findings establish that high performance on synthetic benchmarks is heavily mediated by lexical and template shortcuts. Explainable feature fusion (Phase 5) is strictly necessary to decouple generalizable structural regularities (runs, walks, repeated structures) from specific dictionary words."
+  ],
+  "limitations": [
+    "All experiments use synthetic data distributions and do not measure real-world human password population cracking resistance.",
+    "Dictionary-word recognition cannot be characterized as generalized subword learning or human behavior modeling.",
+    "Synthetic out-of-distribution evaluation measures transfer across defined algorithmic grammars, not defense against targeted credential attacks.",
+    "Zero leaked credential dumps or breach corpora were used in accordance with project safety boundaries."
+  ]
+}

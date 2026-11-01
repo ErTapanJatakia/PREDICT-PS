@@ -1,18 +1,18 @@
-# PREDICT-PS Phase 4, 4.1 & 4.2: Research Integrity & Baseline Validation Pipeline
+# PREDICT-PS Phase 4, 4.1, 4.2 & 4.2.2: Research Integrity & Generalization Audit Pipeline
 
-This directory contains the Python experiment, diagnostic, and evaluation pipeline for the **Character n-gram TF-IDF + Logistic Regression Baseline** and the **Phase 4.2 Research Integrity & Baseline Validation Suite**.
+This directory contains the Python experiment, diagnostic, and evaluation pipeline for the **Character n-gram TF-IDF + Logistic Regression Baseline**, the **Phase 4.2 Controlled Ablation Matrix**, and the **Phase 4.2.2 Lexical Leakage, Template Generalization & Independent Generator Audit Suite**.
 
 ## Research Objective
 
 Phase 4 establishes an empirical character-level statistical machine learning baseline to predict whether candidate strings exhibit predictable structural patterns (`is_guessable_heuristic = 1`) versus high-entropy uniform randomness (`is_guessable_heuristic = 0`).
 
-Phase 4.1 & Phase 4.2 strengthen scientific rigor, reproducibility, and methodological integrity through:
-1. **Bootstrap Threshold Propagation**: Propagating the exact validation-selected decision threshold $\tau$ into `compute_bootstrap_confidence_intervals`. Every bootstrap resample evaluates at this fixed threshold (never defaulting to 0.5 or re-optimizing on test splits).
-2. **Resample Accounting**: Complete tracking of `requested_resamples` (1,000), `valid_resamples`, `skipped_single_class_resamples`, and `valid_resamples_by_metric` for both ranking and classification metrics.
-3. **Dual-Control Neutralization (Exps 7 & 8)**: Jointly matching candidate length (exact 14 characters) and composition (8 lower, 2 upper, 2 digits, 2 symbols) between classes. Demonstrating that a composition-only model on this set collapses to near-chance performance (55.50% Acc, 0.5725 ROC-AUC), proving composition shortcut neutralization.
-4. **Independent OOD Holdout (Exp 4)**: Quantifying generalization failure when evaluated against novel pattern grammars (ISO dates, PIN-padded names, reverse encased phrases, zigzag walks) with a frozen model and threshold $\tau_{orig}$.
-5. **Partition Isolation**: Ensuring 0 exact and 0 case-normalized duplicate leakage across train, validation, and test splits.
-6. **Artifact Synchronization**: Exact byte and content parity between `src/data/` and `python/` manifests.
+Phase 4.2.2 deepens scientific integrity by evaluating whether models exploit subtle lexical memorization or template-positional shortcuts rather than learning generalizable structural predictability:
+1. **Lexical Group Isolation (Exp G2)**: Partitions dictionary words disjointly across train, val, and test splits ($W_{\text{train}} \cap W_{\text{val}} = \emptyset$, $W_{\text{train}} \cap W_{\text{test}} = \emptyset$, $W_{\text{val}} \cap W_{\text{test}} = \emptyset$). Zero shared words across partitions (207 train, 44 val, 45 test).
+2. **Template Family Generalization (Exp G3)**: Holds out positive-generation template families (train on `PrefixPadded`, `SuffixPadded`; test on `PrefixSymbols`) with matched length (14) and composition (8L/2U/2D/2S).
+3. **Independent Generator V2 Transfer (Exp G4)**: Evaluates the frozen baseline on candidates from an independently designed generator featuring phonetic stem compounding (`starfire`, `moonrock`) and non-affix geometries (bracketed, sandwich, interleaved).
+4. **Lexical-Only Diagnostic Comparator (Exps G5 & G6)**: Measures dictionary word memorization shortcut on random split (99.67% Acc) vs lexical-disjoint split (collapses to 50.00% Acc, 0.5000 ROC-AUC).
+5. **Position-Aware Diagnostic Comparator (Exps G7 & G8)**: Measures positional character-class slot bias without character identity (99.50% Acc on standard templates vs collapses to 50.00% Acc on held-out template families).
+6. **Full Bootstrap Accounting**: Propagating fixed validation threshold $\tau$ across 1,000 resamples with full resample tracking.
 
 ## Privacy & Safety Invariants
 
@@ -24,36 +24,36 @@ Phase 4.1 & Phase 4.2 strengthen scientific rigor, reproducibility, and methodol
 ## Pipeline Architecture
 
 - `requirements.txt`: Documented dependencies (`scikit-learn>=1.3.0,<=1.8.0`, `numpy>=1.24.0,<=2.3.0`, `scipy>=1.11.0,<=1.16.0`).
-- `dataset_generator.py`: Generates synthetic candidates across standard and controlled subsets:
+- `dataset_generator.py`: Generates synthetic candidates across standard, controlled, and audit subsets:
   - Original 5 categories (sequential, dictionary suffix, repeated phrase, keyboard walk, high-entropy uniform).
-  - Length-Controlled subset: matched range [12, 16] characters ($\Delta = 0.0$ chars).
-  - Charset-Controlled subset: all 4 character classes required for both positive and negative classes.
-  - Length AND Composition Controlled subset: exact 14 characters, 8 lower, 2 upper, 2 digits, 2 symbols for both classes.
-  - Independent Holdout generator: seed 9999 with novel pattern families (ISO dates, PIN-padded names, reverse encasing, zigzag walks).
+  - Dual-Controlled matched subset: exact 14 characters, 8 lower, 2 upper, 2 digits, 2 symbols for both classes.
+  - Template families: `TEMPLATE_SUFFIX_PADDED`, `TEMPLATE_PREFIX_PADDED`, `TEMPLATE_PREFIX_SYMBOLS`, `TEMPLATE_WORD_SYMBOLS_SUFFIX`, `TEMPLATE_UNIFORM_SCRAMBLE`.
+  - Group-aware splitters: `split_dataset_by_lexical_group` (disjoint dictionary words) and `split_dataset_by_template_family` (held-out template families).
+  - Independent Generator V2 (`generate_independent_v2_matched_dataset`): 50 phonetic 4-letter stems compounded into 8-letter roots, structured via sandwich, bracketed, and interleaved geometries, strictly matched to 14 chars (8L/2U/2D/2S).
 - `dataset_diagnostics.py`: Evaluates dataset composition, length aggregates, character-class frequencies, duplicate detection, and cross-split partition isolation.
 - `model_pipeline.py`:
-  - `NgramBaselineModel`: Character TF-IDF n-grams (2–5) + Logistic Regression. Vectorizer is fitted *exclusively* on the training partition.
-  - `LengthOnlyBaselineModel`: Single-feature logistic model predicting purely from candidate string length.
-  - `CompositionOnlyBaselineModel`: 6-feature logistic model predicting from coarse character-set counts.
+  - `NgramBaselineModel`: Character TF-IDF n-grams (2–5) + Logistic Regression. Vectorizer fitted *exclusively* on train partition.
+  - `LexicalOnlyBaselineModel`: Extracts dictionary presence and coverage from training words to quantify the word memorization shortcut.
+  - `PositionAwareDiagnosticModel`: Extracts 56 positional character-type features to quantify positional slot bias.
   - `compute_calibration_curve`: 10-bin reliability diagram and Expected Calibration Error (ECE).
   - `compute_bootstrap_confidence_intervals`: 95% percentile confidence intervals with 1,000 resamples and fixed threshold propagation.
   - `select_validation_threshold`: Threshold $\tau$ optimized on validation split to minimize False-Strong Rate (FSR) while maintaining precision $\ge 0.85$.
-- `run_experiments.py`: Unified experiment runner executing all 8 experiments, computing diagnostics, and exporting canonical manifests.
-- `export_artifact.py`: Legacy Phase 4 single-baseline exporter for backward compatibility.
-- `tests/test_pipeline.py`: Comprehensive 28-test unit test suite covering all research integrity dimensions.
+- `run_generalization_experiments.py`: Unified Phase 4.2.2 runner executing Tracks G1–G8 and exporting canonical manifests.
+- `run_experiments.py`: Historical Phase 4.2 runner executing Tracks A1–A8.
+- `tests/test_pipeline.py`: Comprehensive 36-test unit test suite covering baseline, ablations, leakage isolation, template holdout, and independent generator matching.
 
-## Controlled Empirical Ablation Matrix (8 Experiments)
+## Phase 4.2.2 Generalization & Leakage Audit Matrix (Tracks G1–G8)
 
-| Experiment | Description | Evaluation Split | Key Metric / Implication |
-|---|---|---|---|
-| **Exp 1: Original Baseline** | n-gram 2–5 TF-IDF + LogisticRegression | In-Distribution Test | Test Accuracy 100%, Macro-F1 1.0000, FSR 0.00%, Brier 0.0402 ($\tau = 0.35$). |
-| **Exp 2: Length-Controlled** | Length held to [12, 16] chars ($\Delta = 0.0$) | Length-Controlled Test | Test Accuracy 100%, Macro-F1 0.9983. Confirms model learns subwords even without length cue. |
-| **Exp 3: Charset-Controlled** | All 4 character classes required | Charset-Controlled Test | Test Accuracy 98.67%, Macro-F1 0.9867. Confirms resilience under forced complexity. |
-| **Exp 4: Independent Holdout** | Transfer to novel grammars (seed 9999) | OOD Holdout Test | **FSR surges to 71.20%**, **Recall collapses to 28.80%**, Macro-F1 0.5891. Proves n-grams fail on unseen structural grammars; validates need for Phase 5 feature fusion. |
-| **Exp 5: Length-Only Diagnostic** | Logistic Regression on string length only | In-Distribution Test | **94.00% Accuracy, 0.9896 ROC-AUC** with length alone ($\Delta = 6.6$ chars in unconstrained data). Confirms length shortcut. |
-| **Exp 6: Composition Diagnostic** | Logistic Regression on 6 character counts | In-Distribution Test | **99.50% Accuracy, 1.0000 ROC-AUC** with character counts alone. Confirms character composition shortcut. |
-| **Exp 7: Dual-Controlled Model** | n-gram model on matched length (14) & comp (8L/2U/2D/2S) | Dual-Controlled Test | **100.00% Accuracy, 1.0000 Macro-F1**. Subword learning persists despite full structural control. |
-| **Exp 8: Composition on Matched** | Composition model on Exp 7 matched dataset | Neutralization Test | **55.50% Accuracy, 0.5725 ROC-AUC**. Composition model collapses to near chance; proves complete neutralization of composition shortcut. |
+| Track | Description | Partition / Conditions | Test Acc | Macro-F1 | FSR | ROC-AUC | Brier |
+|---|---|---|---|---|---|---|---|
+| **G1** | Random Stratified Baseline | 14-char matched (8L/2U/2D/2S) | 99.67% | 0.9967 | 0.33% | 0.9999 | 0.0480 |
+| **G2** | Lexical-Group-Disjoint Split | 207 train / 44 val / 45 test words | 98.40% | 0.9840 | **2.88%** | 0.9994 | 0.0460 |
+| **G3** | Template-Family-Disjoint | Train on Prefix/Suffix; test on PrefixSymbols | 99.79% | 0.9979 | 0.42% | 1.0000 | 0.0401 |
+| **G4** | Independent Generator V2 | Frozen G1 tested on phonetic compounding | **75.00%** | **0.7344** | **49.20%** | **0.8658** | **0.2285** |
+| **G5** | Lexical-Only Diagnostic | Random split (word overlap permitted) | **99.67%** | **0.9967** | 0.33% | **0.9967** | 0.0033 |
+| **G6** | Lexical-Only Disjoint | Disjoint lexical split (0 shared words) | **50.00%** | **0.3333** | 100.00% | **0.5000** | 0.5000 |
+| **G7** | Position-Aware Diagnostic | Standard fixed-position templates | **99.50%** | **0.9950** | 0.00% | **1.0000** | 0.0049 |
+| **G8** | Position-Aware Held-Out | Held-out template families | **50.00%** | **0.3333** | 100.00% | **0.7158** | 0.5000 |
 
 ## Local Execution Instructions
 
@@ -62,13 +62,20 @@ Phase 4.1 & Phase 4.2 strengthen scientific rigor, reproducibility, and methodol
 pip install -r python/requirements.txt
 ```
 
-### 2. Run Test Suite (28 Tests)
+### 2. Run Test Suite (36 Tests)
 ```bash
 python3 -m unittest discover -s python/tests -v
 ```
 
-### 3. Run All 8 Experiments & Generate Manifest
+### 3. Run Phase 4.2.2 Generalization Experiments (Tracks G1–G8)
+```bash
+python3 python/run_generalization_experiments.py
+```
+Outputs: `src/data/phase4_2_generalization_manifest.json` and `python/phase4_2_generalization_manifest.json`.
+
+### 4. Run Historical Phase 4.2 Ablation Matrix (Tracks A1–A8)
 ```bash
 python3 python/run_experiments.py
 ```
-This updates both `src/data/phase4_1_experiments_manifest.json` and `python/phase4_1_experiments_manifest.json`.
+Outputs: `src/data/phase4_1_experiments_manifest.json` and `python/phase4_1_experiments_manifest.json`.
+

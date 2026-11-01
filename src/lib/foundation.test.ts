@@ -21,6 +21,7 @@ import {
   evaluateNistGuidance,
   validatePhase4ArtifactSchema,
   validatePhase41ManifestSchema,
+  validatePhase42GeneralizationManifestSchema,
   calculateExtendedMetrics,
   calculateFalseStrongRate,
   calculateFalseWeakRate,
@@ -460,6 +461,27 @@ test('validatePhase41ManifestSchema: validates manifest structure and rejects ra
     candidates: ['Pass123!'],
   };
   const leakRes = validatePhase41ManifestSchema(leakManifest);
+  assert.equal(leakRes.valid, false);
+  assert.ok(leakRes.errors.some(e => e.includes('Privacy violation')));
+});
+
+test('validatePhase42GeneralizationManifestSchema: validates generalization manifest structure and rejects raw candidates', () => {
+  const genManifestPath = resolve(process.cwd(), 'src/data/phase4_2_generalization_manifest.json');
+  const genContent = JSON.parse(readFileSync(genManifestPath, 'utf-8'));
+
+  const validRes = validatePhase42GeneralizationManifestSchema(genContent);
+  assert.equal(validRes.valid, true, `Errors: ${validRes.errors.join(', ')}`);
+
+  // Backward compatibility check: validatePhase4ArtifactSchema accepts predict_ps_phase4_2_2_v1 too
+  const backwardRes = validatePhase4ArtifactSchema(genContent);
+  assert.equal(backwardRes.valid, true);
+
+  // Rejection of raw candidate strings
+  const leakManifest = {
+    ...genContent,
+    raw_passwords: ['Admin123$!'],
+  };
+  const leakRes = validatePhase42GeneralizationManifestSchema(leakManifest);
   assert.equal(leakRes.valid, false);
   assert.ok(leakRes.errors.some(e => e.includes('Privacy violation')));
 });

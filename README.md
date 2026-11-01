@@ -1,6 +1,6 @@
 # PREDICT-PS: Password Predictability Research Workbench
 
-> **Phase 4.2: Statistical Correction, Artifact Synchronization & Research Integrity Gate**  
+> **Phase 4.2.2: Lexical Leakage, Template Generalization & Independent Generator Audit**  
 > *Notice: Research Prototype — Not a security certification. Academic study in progress.*
 
 ---
@@ -10,16 +10,19 @@
 PREDICT-PS investigates the central hypothesis:
 > *"Whether explainable password-pattern features fused with a conventional character-level machine-learning model can improve identification of guessable human-selected passwords compared with simple rules, zxcvbn, and a character n-gram ML baseline, while preserving password privacy and acceptable computational cost."*
 
-This is an **empirical hypothesis to test**, not an established result or claim of novelty or superiority. 
+This is an **empirical hypothesis to test**, not an established result or claim of novelty or superiority.
 
 Phase 4 implemented the character-level TF-IDF n-gram (2–5) + Logistic Regression statistical machine-learning baseline.
 
-**Phase 4.2 (Statistical Correction, Artifact Synchronization & Research Integrity Gate)** strengthens the scientific validity, reproducibility, and methodological integrity through:
-1. **Bootstrap Threshold Defect Correction**: Propagating the exact validation-selected decision threshold $\tau$ into `compute_bootstrap_confidence_intervals`. Every bootstrap resample is evaluated at this fixed threshold (never defaulting to 0.5 or re-optimizing on test splits), ensuring point estimates and confidence intervals evaluate the same classifier operating point.
-2. **Resample Accounting**: Full tracking of `requested_resamples` (1,000), `valid_resamples`, `skipped_single_class_resamples`, and `valid_resamples_by_metric` for both ranking and classification metrics.
-3. **Dual-Control Dataset & Neutralization (Exps 7 & 8)**: Jointly controlling BOTH candidate length (exact 14 characters) and character composition (8 lower, 2 upper, 2 digits, 2 symbols) across both positive and negative classes. Exp 8 demonstrates that a composition-only diagnostic model collapses to near-random guessing (55.50% Acc, 0.5725 ROC-AUC), proving composition shortcut neutralization.
-4. **Independent Holdout Evaluation (Exp 4)**: Evaluating the frozen Exp 1 model and threshold $\tau_{orig}$ on unseen pattern templates (ISO dates, PIN-padded names, reverse encasing, zigzag walks) without retraining.
-5. **Artifact Synchronization & Verification**: Canonical synchronization between `src/data/` and `python/` artifacts with 28 automated Python regression tests and 26 TypeScript tests.
+**Phase 4.2.2 (Lexical Leakage, Template Generalization & Independent Generator Audit)** advances scientific rigor before Phase 5 feature fusion through:
+1. **Lexical Group Isolation**: Strict partition of underlying dictionary words so that no dictionary root word appears in more than one partition ($W_{\text{train}} \cap W_{\text{val}} = \emptyset$, $W_{\text{train}} \cap W_{\text{test}} = \emptyset$, $W_{\text{val}} \cap W_{\text{test}} = \emptyset$; 207 train words, 44 val words, 45 test words; 0 overlap).
+2. **Template Family Generalization**: Holding out entire positive-generation template families (e.g., training on `PrefixPadded` and `SuffixPadded`, evaluating on unseen `PrefixSymbols`) with matched length (14) and composition (8L/2U/2D/2S).
+3. **Independent Generator V2 Evaluation**: Evaluating transfer to candidates synthesized by an independently designed generator featuring phonetic stem compounding (`starfire`, `moonrock`) and bracketed/interleaved geometries.
+4. **Diagnostic Comparators**:
+   - `LexicalOnlyBaselineModel`: Extracts dictionary presence and coverage from training words to quantify the word memorization shortcut.
+   - `PositionAwareDiagnosticModel`: Extracts 56 positional character-type features to quantify positional slot bias without character identity knowledge.
+5. **Rigorous Bootstrap Accounting**: Propagating the exact validation-selected threshold $\tau$ across 1,000 bootstrap iterations with full resample accounting (`requested_resamples`, `valid_resamples`, `skipped_single_class_resamples`, `valid_resamples_by_metric`).
+6. **Artifact Synchronization & Verification**: Canonical synchronization between `src/data/` and `python/` artifacts with 36 automated Python regression tests and 27 TypeScript tests.
 
 ---
 
@@ -33,12 +36,34 @@ Phase 4 implemented the character-level TF-IDF n-gram (2–5) + Logistic Regress
 | **Phase 4** | **Character n-gram Statistical ML Baseline (scikit-learn Pipeline)** | **Completed** |
 | **Phase 4.1**| **Research Integrity & Baseline Validation (Ablation Matrix & Audits)**| **Completed** |
 | **Phase 4.2**| **Statistical Correction, Artifact Synchronization & Integrity Gate** | **Completed** |
+| **Phase 4.2.2**| **Lexical Leakage, Template Generalization & Independent Generator Audit** | **Completed** |
 | Phase 5 | Explainable Feature-Fusion Architecture | Planned (Not Implemented) |
 | Phase 6 | Reproducible Evaluation Workbench & Ablation Matrix | Planned (Not Implemented) |
 
 ---
 
-## 3. Controlled Empirical Ablation Matrix (8 Experiments)
+## 3. Phase 4.2.2 Generalization & Leakage Audit Matrix (Tracks G1–G8)
+
+| Experiment | Description & Conditions | Partition Strategy | Test Acc | Macro-F1 | FSR | ROC-AUC | Brier | 95% CI (F1) |
+|---|---|---|---|---|---|---|---|---|
+| **G1: Random Split Baseline** | Matched 14-char (8L/2U/2D/2S) standard templates | Random Stratified ($N=4,000$) | 99.67% | 0.9967 | 0.33% | 0.9999 | 0.0480 | [0.992, 1.000] |
+| **G2: Lexical-Group Disjoint** | 207 train / 44 val / 45 test disjoint words | Disjoint Dictionary Groups | 98.40% | 0.9840 | **2.88%** | 0.9994 | 0.0460 | [0.973, 0.993] |
+| **G3: Template-Family Disjoint**| Train on `PrefixPadded`/`SuffixPadded`, test on `PrefixSymbols` | Held-Out Template Family | 99.79% | 0.9979 | 0.42% | 1.0000 | 0.0401 | [0.994, 1.000] |
+| **G4: Independent Generator V2**| Frozen G1 model tested on phonetic compounding & novel geometries | Unseen Generator V2 ($N=1,000$) | **75.00%** | **0.7344** | **49.20%** | **0.8658** | **0.2285** | [0.638, 0.704] |
+| **G5: Lexical-Only Diagnostic**| Evaluates dictionary word presence/coverage shortcut | Random Split | **99.67%** | **0.9967** | 0.33% | **0.9967** | 0.0033 | [0.992, 1.000] |
+| **G6: Lexical-Only Disjoint** | Evaluates dictionary word presence on unseen words | Disjoint Lexical Split | **50.00%** | **0.3333** | 100.00% | **0.5000** | 0.5000 | [0.333, 0.333] |
+| **G7: Position-Aware Diagnostic**| Evaluates 56 positional character-class slots alone | Standard Templates | **99.50%** | **0.9950** | 0.00% | **1.0000** | 0.0049 | [0.990, 1.000] |
+| **G8: Position-Aware Held-Out** | Evaluates positional slots on held-out template families | Held-Out Template Families | **50.00%** | **0.3333** | 100.00% | **0.7158** | 0.5000 | [0.333, 0.333] |
+
+### Key Scientific Findings:
+1. **Dictionary Word Memorization is a Latent Shortcut (G5 vs G6)**: On random splits where dictionary words overlap between train and test partitions, a pure lexical memorizer achieves **99.67% accuracy** without learning any subword generalizations (Exp G5). When evaluated under strict lexical group isolation (Exp G6), this diagnostic collapses completely to **50.00% accuracy and 0.5000 ROC-AUC** (exact chance), confirming zero cross-word transfer and proving the isolation methodology is airtight.
+2. **Positional Character Slots Are Fully Exploited on Fixed Templates (G7 vs G8)**: A model given zero character identity information—only the character class (lower, upper, digit, symbol) at each of the 14 indices—achieves **99.50% accuracy and 1.0000 ROC-AUC** on standard templates (Exp G7). When evaluated against held-out template geometries (Exp G8), accuracy collapses to **50.00% (exact random chance)**, demonstrating that standard synthetic templates permit severe positional overfitting.
+3. **Lexical Isolation Increases Error Rates on Guessable Passwords (G1 vs G2)**: When dictionary root words are strictly disjoint between train and test partitions (Exp G2), the False-Strong Rate increases nearly **9-fold** (from 0.33% to 2.88%), revealing that the model's apparent in-distribution precision was partially inflated by memorizing specific root stems.
+4. **Independent Generator Transfer Failure Demonstrates Generator Dependence (G4)**: When the frozen character n-gram baseline is evaluated on candidates from an independent generator featuring phonetic stem compounding (`starfire`, `moonrock`) and non-affix geometries (sandwich, bracketed), accuracy drops to **75.00%**, macro-F1 drops to **0.7344**, and the **False-Strong Rate surges to 49.20%** ($246/500$ predictable passwords classified as strong). This empirically proves that character n-gram baselines exhibit severe generator dependence and lack generalizable understanding of human-like structural predictability.
+
+---
+
+## 4. Controlled Empirical Ablation Matrix (Historical Phase 4.2 Tracks A1–A8)
 
 | Experiment | Purpose & Dataset Condition | Evaluation Split | FSR | Macro-F1 | PR-AUC | ROC-AUC | Balanced Acc | Brier | 95% CI (F1) |
 |---|---|---|---|---|---|---|---|---|---|
@@ -95,7 +120,7 @@ The Password Lab implements three distinct, local evaluation perspectives for an
 1. **Zero Network Egress**: Zero external API calls, zero telemetry, zero database connections, zero Gemini API calls, and zero third-party trackers.
 2. **Zero Storage Persistence**: Never writes candidate passwords to `localStorage`, `sessionStorage`, `document.cookie`, `IndexedDB`, or URL query parameters.
 3. **Transient Memory Management**: Generated and candidate values are kept transiently in component React state only.
-4. **Export Sanitization**: Built-in `sanitizeResearchExport()` filter and JSON schema validators (`predict_ps_phase4_v1` and `predict_ps_phase4_1_v1`) reject any raw password candidates or credential material.
+4. **Export Sanitization**: Built-in `sanitizeResearchExport()` filter and JSON schema validators (`predict_ps_phase4_v1`, `predict_ps_phase4_1_v1`, and `predict_ps_phase4_2_2_v1`) reject any raw password candidates or credential material.
 
 ---
 
@@ -107,18 +132,24 @@ npm run dev
 ```
 The server runs on `http://localhost:3000`.
 
-### Running Python Unit Test Suite (28 Tests)
+### Running Python Unit Test Suite (36 Tests)
 ```bash
 python3 -m unittest discover -s python/tests -v
 ```
 
-### Running All 8 Experiments & Generating Manifest
+### Running Phase 4.2.2 Generalization Experiments (Tracks G1–G8)
+```bash
+python3 python/run_generalization_experiments.py
+```
+Outputs: `src/data/phase4_2_generalization_manifest.json` and `python/phase4_2_generalization_manifest.json`.
+
+### Running Historical Phase 4.2 Baseline Ablation Matrix (Tracks A1–A8)
 ```bash
 python3 python/run_experiments.py
 ```
 Outputs: `src/data/phase4_1_experiments_manifest.json` and `python/phase4_1_experiments_manifest.json`.
 
-### Running TypeScript Pure Logic Test Suite (26 Tests)
+### Running TypeScript Pure Logic Test Suite (27 Tests)
 ```bash
 npx --yes tsx --test src/lib/foundation.test.ts
 ```

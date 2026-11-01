@@ -12,7 +12,8 @@ Includes:
 
 import time
 import math
-from typing import Dict, Any, List, Tuple, Optional
+import re
+from typing import Dict, Any, List, Tuple, Optional, Set
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -172,6 +173,117 @@ class CompositionOnlyBaselineModel:
         if not self.is_fitted:
             raise RuntimeError("Model is not fitted.")
         X = self._extract_features(candidates)
+        return self.classifier.predict_proba(X)[:, 1]
+
+    def predict(self, candidates: List[str], threshold: float = 0.5) -> np.ndarray:
+        return (self.predict_proba(candidates) >= threshold).astype(int)
+
+
+class LexicalOnlyBaselineModel:
+    """
+    Diagnostic Control Classifier (Phase 4.2.2):
+    Evaluates how much discrimination is achieved purely through dictionary-word recognition.
+    Learns the set of 8-letter dictionary words exclusively from the training partition.
+    Extracts lexical presence features:
+    - exact_lexicon_match: binary flag if candidate contains any word in self.known_lexicon
+    - longest_alpha_run: length of longest contiguous alphabetical character run
+    - has_8_letter_alpha_run: binary flag indicating whether an 8-character alphabetic block exists
+    Demonstrates whether high baseline accuracy is driven by memorized dictionary words.
+    """
+
+    def __init__(self, target_word_length: int = 8, random_state: int = 42):
+        self.target_word_length = target_word_length
+        self.random_state = random_state
+        self.known_lexicon: Set[str] = set()
+        self.classifier = LogisticRegression(random_state=random_state, max_iter=500)
+        self.is_fitted = False
+
+    def _extract_lexicon_features(self, candidates: List[str]) -> np.ndarray:
+        features = []
+        for c in candidates:
+            c_lower = c.lower()
+            # 1. Exact match of any training dictionary word
+            matched = any(w in c_lower for w in self.known_lexicon) if self.known_lexicon else False
+            # 2. Proportion of candidate covered by known training dictionary words
+            chars_in_dict = 0
+            for w in self.known_lexicon:
+                if w in c_lower:
+                    chars_in_dict += len(w)
+            frac_in_dict = min(1.0, chars_in_dict / max(1, len(c_lower)))
+            features.append([1.0 if matched else 0.0, frac_in_dict])
+        return np.array(features, dtype=float)
+
+    def fit(self, train_candidates: List[str], train_labels: List[int]) -> float:
+        t0 = time.perf_counter()
+        # Learn lexicon strictly from positive training samples
+        self.known_lexicon = set()
+        for cand, lbl in zip(train_candidates, train_labels):
+            if lbl == 1:
+                c_lower = cand.lower()
+                for i in range(len(c_lower) - self.target_word_length + 1):
+                    sub = c_lower[i:i + self.target_word_length]
+                    if sub.isalpha():
+                        self.known_lexicon.add(sub)
+        X = self._extract_lexicon_features(train_candidates)
+        self.classifier.fit(X, train_labels)
+        self.is_fitted = True
+        return (time.perf_counter() - t0) * 1000.0
+
+    def predict_proba(self, candidates: List[str]) -> np.ndarray:
+        if not self.is_fitted:
+            raise RuntimeError("Model is not fitted. Call fit() before predict_proba().")
+        X = self._extract_lexicon_features(candidates)
+        return self.classifier.predict_proba(X)[:, 1]
+
+    def predict(self, candidates: List[str], threshold: float = 0.5) -> np.ndarray:
+        return (self.predict_proba(candidates) >= threshold).astype(int)
+
+
+class PositionAwareDiagnosticModel:
+    """
+    Diagnostic Control Classifier (Phase 4.2.2):
+    Evaluates whether class differences can be predicted purely from character-position
+    patterns (character class per position) without any lexical/character identity knowledge.
+    For each position i in [0..target_length-1]:
+    - is_lower, is_upper, is_digit, is_symbol (4 one-hot features per position).
+    Total features: 4 * target_length (e.g. 56 features for length 14).
+    """
+
+    def __init__(self, target_length: int = 14, random_state: int = 42):
+        self.target_length = target_length
+        self.random_state = random_state
+        self.classifier = LogisticRegression(random_state=random_state, max_iter=500)
+        self.is_fitted = False
+
+    def _extract_positional_features(self, candidates: List[str]) -> np.ndarray:
+        symbols = set("!@#$%^&*()_+-=[]{}|;:,.<>?/`~'\"\\")
+        features = []
+        for c in candidates:
+            row = []
+            for i in range(self.target_length):
+                if i < len(c):
+                    ch = c[i]
+                    is_low = 1.0 if ch.islower() else 0.0
+                    is_up = 1.0 if ch.isupper() else 0.0
+                    is_dig = 1.0 if ch.isdigit() else 0.0
+                    is_sym = 1.0 if ch in symbols else 0.0
+                else:
+                    is_low, is_up, is_dig, is_sym = 0.0, 0.0, 0.0, 0.0
+                row.extend([is_low, is_up, is_dig, is_sym])
+            features.append(row)
+        return np.array(features, dtype=float)
+
+    def fit(self, train_candidates: List[str], train_labels: List[int]) -> float:
+        t0 = time.perf_counter()
+        X = self._extract_positional_features(train_candidates)
+        self.classifier.fit(X, train_labels)
+        self.is_fitted = True
+        return (time.perf_counter() - t0) * 1000.0
+
+    def predict_proba(self, candidates: List[str]) -> np.ndarray:
+        if not self.is_fitted:
+            raise RuntimeError("Model is not fitted. Call fit() before predict_proba().")
+        X = self._extract_positional_features(candidates)
         return self.classifier.predict_proba(X)[:, 1]
 
     def predict(self, candidates: List[str], threshold: float = 0.5) -> np.ndarray:

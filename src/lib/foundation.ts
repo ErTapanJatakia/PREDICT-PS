@@ -1060,13 +1060,16 @@ export function validatePhase4ArtifactSchema(data: unknown): { valid: boolean; e
 
   const obj = data as Record<string, unknown>;
 
-  // Accept predict_ps_phase4_v1 or Phase 4.1 manifest schemas
+  // Accept predict_ps_phase4_v1, Phase 4.1, or Phase 4.2.2 generalization manifest schemas
   if (obj.schema_version === 'predict_ps_phase4_1_v1') {
     return validatePhase41ManifestSchema(data);
   }
+  if (obj.schema_version === 'predict_ps_phase4_2_2_v1') {
+    return validatePhase42GeneralizationManifestSchema(data);
+  }
 
   if (obj.schema_version !== 'predict_ps_phase4_v1') {
-    errors.push('Invalid or missing schema_version (expected "predict_ps_phase4_v1" or "predict_ps_phase4_1_v1").');
+    errors.push('Invalid or missing schema_version (expected "predict_ps_phase4_v1", "predict_ps_phase4_1_v1", or "predict_ps_phase4_2_2_v1").');
   }
 
   const allowedStatuses = ['not_trained', 'synthetic_pipeline_validation', 'approved_research_evaluation'];
@@ -1144,6 +1147,65 @@ export function validatePhase41ManifestSchema(data: unknown): { valid: boolean; 
     for (const expKey of requiredExps) {
       if (!exps[expKey] || typeof exps[expKey] !== 'object') {
         errors.push(`Missing experiment "${expKey}" in experiments manifest.`);
+      }
+    }
+  }
+
+  // Security Invariant: Strict raw password prohibition
+  const prohibitedKeys = ['candidates', 'passwords', 'raw_passwords', 'password_list', 'credentials'];
+  for (const key of prohibitedKeys) {
+    if (key in obj) {
+      errors.push(`Privacy violation: Prohibited key "${key}" detected in manifest.`);
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validates Phase 4.2.2 multi-track generalization and leakage audit manifest.
+ */
+export function validatePhase42GeneralizationManifestSchema(data: unknown): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  if (!data || typeof data !== 'object') {
+    return { valid: false, errors: ['Manifest must be a non-null JSON object.'] };
+  }
+
+  const obj = data as Record<string, unknown>;
+
+  if (obj.schema_version !== 'predict_ps_phase4_2_2_v1') {
+    errors.push('Invalid or missing schema_version (expected "predict_ps_phase4_2_2_v1").');
+  }
+
+  if (!obj.environment || typeof obj.environment !== 'object') {
+    errors.push('Missing or invalid environment object.');
+  }
+
+  if (!obj.generalization_audits || typeof obj.generalization_audits !== 'object') {
+    errors.push('Missing or invalid generalization_audits object.');
+  }
+
+  if (!obj.experiments || typeof obj.experiments !== 'object') {
+    errors.push('Missing or invalid experiments object.');
+  } else {
+    const exps = obj.experiments as Record<string, unknown>;
+    const requiredExps = [
+      'exp_g1_random_split_baseline',
+      'exp_g2_lexical_disjoint',
+      'exp_g3_template_disjoint',
+      'exp_g4_independent_v2_holdout',
+      'exp_g5_lexical_diagnostic_random',
+      'exp_g6_lexical_diagnostic_disjoint',
+      'exp_g7_position_diagnostic_standard',
+      'exp_g8_position_diagnostic_heldout'
+    ];
+    for (const expKey of requiredExps) {
+      if (!exps[expKey] || typeof exps[expKey] !== 'object') {
+        errors.push(`Missing generalization experiment "${expKey}" in manifest.`);
       }
     }
   }

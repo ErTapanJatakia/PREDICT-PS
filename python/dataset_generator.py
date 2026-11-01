@@ -9,7 +9,7 @@ Zero breach data, zero credential dumps, zero external downloads.
 
 import random
 import string
-from typing import List, Tuple, Dict, Set
+from typing import List, Tuple, Dict, Set, Any, Optional
 
 
 # Documented base words and predictable affixes for synthetic guessable patterns
@@ -429,6 +429,38 @@ def generate_length_and_composition_controlled_dataset(
     provide any discriminatory signal. Any classification performance above random chance (50%)
     must derive strictly from character n-gram sequence order.
     """
+    cands, lbls, meta = generate_dual_controlled_dataset_with_metadata(n_samples=n_samples, seed=seed)
+    ptypes = [m["category"] for m in meta]
+    return cands, lbls, ptypes
+
+
+# Phase 4.2.2 Template Family Constants
+TEMPLATE_SUFFIX_PADDED = "SuffixPadded"          # word + upper + digits + symbols
+TEMPLATE_PREFIX_PADDED = "PrefixPadded"          # upper + word + digits + symbols
+TEMPLATE_PREFIX_SYMBOLS = "PrefixSymbols"        # symbols + word + upper + digits
+TEMPLATE_WORD_SYMBOLS_SUFFIX = "WordSymbolsSuffix"# word + symbols + upper + digits
+TEMPLATE_UNIFORM_SCRAMBLE = "UniformScramble"
+
+ALL_POSITIVE_TEMPLATE_FAMILIES = [
+    TEMPLATE_SUFFIX_PADDED,
+    TEMPLATE_PREFIX_PADDED,
+    TEMPLATE_PREFIX_SYMBOLS,
+    TEMPLATE_WORD_SYMBOLS_SUFFIX
+]
+
+
+def generate_dual_controlled_dataset_with_metadata(
+    n_samples: int = 4000,
+    seed: int = 42
+) -> Tuple[List[str], List[int], List[Dict[str, Any]]]:
+    """
+    Phase 4.2.2: Generates length-and-composition controlled dataset while retaining
+    non-sensitive generation metadata identifying underlying lexical source and template family.
+
+    CRITICAL PRIVACY INVARIANT:
+    Metadata is retained solely for group-level dataset partitioning and leakage verification.
+    Metadata MUST NEVER be provided as input features to ML vectorizers or classifiers.
+    """
     rng = random.Random(seed)
     n_pos = n_samples // 2
     n_neg = n_samples - n_pos
@@ -438,9 +470,9 @@ def generate_length_and_composition_controlled_dataset(
     seen_normalized: Set[str] = set()
     candidates: List[str] = []
     labels: List[int] = []
-    pattern_types: List[str] = []
+    metadata: List[Dict[str, Any]] = []
 
-    # 1. Generate Positive Candidates
+    # 1. Generate Positive Candidates with Lexical & Template Attribution
     while len([l for l in labels if l == 1]) < n_pos:
         w = rng.choice(WORDS_8_EXPANDED)
         u1, u2 = rng.choice(string.ascii_uppercase), rng.choice(string.ascii_uppercase)
@@ -454,12 +486,16 @@ def generate_length_and_composition_controlled_dataset(
         variant = rng.randint(0, 3)
         if variant == 0:
             cand = f"{w}{upper_pair}{digit_pair}{symbol_pair}"
+            tmpl = TEMPLATE_SUFFIX_PADDED
         elif variant == 1:
             cand = f"{upper_pair}{w}{digit_pair}{symbol_pair}"
+            tmpl = TEMPLATE_PREFIX_PADDED
         elif variant == 2:
             cand = f"{symbol_pair}{w}{upper_pair}{digit_pair}"
+            tmpl = TEMPLATE_PREFIX_SYMBOLS
         else:
             cand = f"{w}{symbol_pair}{upper_pair}{digit_pair}"
+            tmpl = TEMPLATE_WORD_SYMBOLS_SUFFIX
 
         cand_norm = cand.strip().lower()
         if cand not in seen_exact and cand_norm not in seen_normalized:
@@ -467,7 +503,11 @@ def generate_length_and_composition_controlled_dataset(
             seen_normalized.add(cand_norm)
             candidates.append(cand)
             labels.append(1)
-            pattern_types.append("length_composition_matched_positive")
+            metadata.append({
+                "lexical_source": w,
+                "template_family": tmpl,
+                "category": "length_composition_matched_positive"
+            })
 
     # 2. Generate Negative Candidates
     while len([l for l in labels if l == 0]) < n_neg:
@@ -486,12 +526,316 @@ def generate_length_and_composition_controlled_dataset(
             seen_normalized.add(cand_norm)
             candidates.append(cand)
             labels.append(0)
-            pattern_types.append("length_composition_matched_negative")
+            metadata.append({
+                "lexical_source": "none_uniform_scramble",
+                "template_family": TEMPLATE_UNIFORM_SCRAMBLE,
+                "category": "length_composition_matched_negative"
+            })
 
-    combined = list(zip(candidates, labels, pattern_types))
+    combined = list(zip(candidates, labels, metadata))
     rng.shuffle(combined)
-    cands, lbls, ptypes = zip(*combined)
-    return list(cands), list(lbls), list(ptypes)
+    cands, lbls, meta = zip(*combined)
+    return list(cands), list(lbls), list(meta)
+
+
+def split_dataset_by_lexical_group(
+    candidates: List[str],
+    labels: List[int],
+    metadata: List[Dict[str, Any]],
+    train_ratio: float = 0.70,
+    val_ratio: float = 0.15,
+    seed: int = 42
+) -> Dict[str, Dict[str, list]]:
+    """
+    Phase 4.2.2: Lexical Group-Aware Partitioning.
+    Guarantees:
+    - NO underlying dictionary word appears in more than one partition (train, val, test).
+    - train_words ∩ val_words == ∅
+    - train_words ∩ test_words == ∅
+    - val_words ∩ test_words == ∅
+    - Exact and normalized duplicate checks active.
+    - Negative candidates partitioned proportionally with zero cross-split duplicates.
+    """
+    rng = random.Random(seed)
+
+    # 1. Identify all unique positive dictionary words
+    positive_words = sorted(list(set(
+        m["lexical_source"] for m, y in zip(metadata, labels)
+        if y == 1 and m["lexical_source"] != "none_uniform_scramble"
+    )))
+    rng.shuffle(positive_words)
+
+    n_words = len(positive_words)
+    n_train_words = int(n_words * train_ratio)
+    n_val_words = int(n_words * val_ratio)
+
+    train_words_set = set(positive_words[:n_train_words])
+    val_words_set = set(positive_words[n_train_words:n_train_words + n_val_words])
+    test_words_set = set(positive_words[n_train_words + n_val_words:])
+
+    # Strict assertion of word disjointness
+    assert len(train_words_set & val_words_set) == 0, "Lexical word overlap detected between train and val!"
+    assert len(train_words_set & test_words_set) == 0, "Lexical word overlap detected between train and test!"
+    assert len(val_words_set & test_words_set) == 0, "Lexical word overlap detected between val and test!"
+
+    # 2. Partition positive candidate indices by their assigned lexical group
+    pos_train_idx: List[int] = []
+    pos_val_idx: List[int] = []
+    pos_test_idx: List[int] = []
+
+    for i, (m, y) in enumerate(zip(metadata, labels)):
+        if y == 1:
+            w = m["lexical_source"]
+            if w in train_words_set:
+                pos_train_idx.append(i)
+            elif w in val_words_set:
+                pos_val_idx.append(i)
+            else:
+                pos_test_idx.append(i)
+
+    # 3. Partition negative candidate indices proportionally
+    neg_indices = [i for i, y in enumerate(labels) if y == 0]
+    rng.shuffle(neg_indices)
+
+    # Match negative count to positive count in each split for exact balance
+    neg_train_idx = neg_indices[:len(pos_train_idx)]
+    neg_val_idx = neg_indices[len(pos_train_idx):len(pos_train_idx) + len(pos_val_idx)]
+    neg_test_idx = neg_indices[len(pos_train_idx) + len(pos_val_idx):len(pos_train_idx) + len(pos_val_idx) + len(pos_test_idx)]
+
+    # Combine
+    splits = {
+        "train": pos_train_idx + neg_train_idx,
+        "val": pos_val_idx + neg_val_idx,
+        "test": pos_test_idx + neg_test_idx
+    }
+
+    result = {}
+    for split_name, idx_list in splits.items():
+        rng.shuffle(idx_list)
+        result[split_name] = {
+            "candidates": [candidates[i] for i in idx_list],
+            "labels": [labels[i] for i in idx_list],
+            "pattern_types": [metadata[i]["category"] for i in idx_list],
+            "metadata": [metadata[i] for i in idx_list]
+        }
+
+    # Verify zero duplicate leakage across partitions
+    train_cands = set(result["train"]["candidates"])
+    val_cands = set(result["val"]["candidates"])
+    test_cands = set(result["test"]["candidates"])
+
+    assert len(train_cands & val_cands) == 0, "Exact duplicate leakage between train and val!"
+    assert len(train_cands & test_cands) == 0, "Exact duplicate leakage between train and test!"
+    assert len(val_cands & test_cands) == 0, "Exact duplicate leakage between val and test!"
+
+    # Verify zero normalized duplicate leakage
+    train_norm = set(c.strip().lower() for c in train_cands)
+    val_norm = set(c.strip().lower() for c in val_cands)
+    test_norm = set(c.strip().lower() for c in test_cands)
+
+    assert len(train_norm & val_norm) == 0, "Normalized duplicate leakage between train and val!"
+    assert len(train_norm & test_norm) == 0, "Normalized duplicate leakage between train and test!"
+    assert len(val_norm & test_norm) == 0, "Normalized duplicate leakage between val and test!"
+
+    return result
+
+
+def split_dataset_by_template_family(
+    candidates: List[str],
+    labels: List[int],
+    metadata: List[Dict[str, Any]],
+    train_families: Optional[List[str]] = None,
+    val_families: Optional[List[str]] = None,
+    test_families: Optional[List[str]] = None,
+    seed: int = 42
+) -> Dict[str, Dict[str, list]]:
+    """
+    Phase 4.2.2: Template-Family-Disjoint Partitioning.
+    Holds out entire template families from training to evaluate whether the model
+    generalizes to novel syntactic arrangements.
+
+    Default Allocation:
+    - Train: [SuffixPadded, PrefixPadded] (e.g. word + affixes or prefix + word)
+    - Val: [WordSymbolsSuffix] (e.g. word + symbols + upper + digits)
+    - Test: [PrefixSymbols] (e.g. symbols + word + upper + digits)
+    """
+    rng = random.Random(seed)
+
+    if train_families is None:
+        train_families = [TEMPLATE_SUFFIX_PADDED, TEMPLATE_PREFIX_PADDED]
+    if val_families is None:
+        val_families = [TEMPLATE_WORD_SYMBOLS_SUFFIX]
+    if test_families is None:
+        test_families = [TEMPLATE_PREFIX_SYMBOLS]
+
+    train_fam_set = set(train_families)
+    val_fam_set = set(val_families)
+    test_fam_set = set(test_families)
+
+    assert len(train_fam_set & test_fam_set) == 0, "Template family overlap between train and test!"
+    assert len(val_fam_set & test_fam_set) == 0, "Template family overlap between val and test!"
+
+    pos_train_idx: List[int] = []
+    pos_val_idx: List[int] = []
+    pos_test_idx: List[int] = []
+
+    for i, (m, y) in enumerate(zip(metadata, labels)):
+        if y == 1:
+            tmpl = m["template_family"]
+            if tmpl in train_fam_set:
+                pos_train_idx.append(i)
+            elif tmpl in val_fam_set:
+                pos_val_idx.append(i)
+            elif tmpl in test_fam_set:
+                pos_test_idx.append(i)
+
+    neg_indices = [i for i, y in enumerate(labels) if y == 0]
+    rng.shuffle(neg_indices)
+
+    neg_train_idx = neg_indices[:len(pos_train_idx)]
+    neg_val_idx = neg_indices[len(pos_train_idx):len(pos_train_idx) + len(pos_val_idx)]
+    neg_test_idx = neg_indices[len(pos_train_idx) + len(pos_val_idx):len(pos_train_idx) + len(pos_val_idx) + len(pos_test_idx)]
+
+    splits = {
+        "train": pos_train_idx + neg_train_idx,
+        "val": pos_val_idx + neg_val_idx,
+        "test": pos_test_idx + neg_test_idx
+    }
+
+    result = {}
+    for split_name, idx_list in splits.items():
+        rng.shuffle(idx_list)
+        result[split_name] = {
+            "candidates": [candidates[i] for i in idx_list],
+            "labels": [labels[i] for i in idx_list],
+            "pattern_types": [metadata[i]["category"] for i in idx_list],
+            "metadata": [metadata[i] for i in idx_list]
+        }
+
+    # Verify zero duplicate leakage
+    train_cands = set(result["train"]["candidates"])
+    val_cands = set(result["val"]["candidates"])
+    test_cands = set(result["test"]["candidates"])
+    assert len(train_cands & test_cands) == 0, "Cross-split candidate leakage in template split!"
+
+    return result
+
+
+# Phonetic 4-letter stems for Independent Generator V2 (distinct from WORDS_8_EXPANDED)
+INDEPENDENT_PHONETIC_4_STEMS = [
+    "blue", "bird", "star", "fire", "moon", "rock", "wolf", "hawk", "wind", "snow",
+    "gold", "iron", "dark", "glow", "mist", "peak", "wave", "lion", "bear", "frog",
+    "dawn", "dusk", "jade", "rain", "rose", "sage", "pine", "wild", "bark", "claw",
+    "fern", "leaf", "moss", "reed", "sand", "tide", "wood", "cove", "dune", "glin",
+    "vale", "rift", "lake", "isle", "bays", "flam", "bolt", "glow", "haze", "beam"
+]
+
+
+def generate_independent_v2_matched_dataset(
+    n_samples: int = 1000,
+    seed: int = 9999
+) -> Tuple[List[str], List[int], List[Dict[str, Any]]]:
+    """
+    Phase 4.2.2: Independent Synthetic Generator V2.
+    Constructs an independently designed evaluation dataset for positive and negative candidates:
+    - Completely distinct construction logic (phonetic stem compounding, non-affix geometries).
+    - Novel pattern families:
+      1. Interleaved Affix: upper + stem1 + sym + digit + stem2 + upper + sym + digit
+         (e.g. 'B' + 'star' + '!' + '7' + 'fire' + 'K' + '@' + '2' -> 'Bstar!7fireK@2')
+      2. Mirrored Bracket: sym + upper + digit + stem1 + stem2 + digit + upper + sym
+         (e.g. '$' + 'R' + '9' + 'moon' + 'rock' + '4' + 'W' + '&' -> '$R9moonrock4W&')
+      3. Sandwich Affix: digit + digit + stem1 + stem2 + upper + upper + sym + sym
+         (e.g. '8' + '3' + 'wolf' + 'hawk' + 'N' + 'Y' + '#' + '!' -> '83wolfhawkNY#!')
+    - EXACT Length & Composition Matching:
+      - Length: Exactly 14 characters.
+      - Composition: Exactly 8 lowercase, 2 uppercase, 2 digits, 2 symbols.
+    - Negative Candidates:
+      - Independent multiset Latin-square permutation and modular shuffling of
+        8 lowercase, 2 uppercase, 2 digits, 2 symbols.
+    - Zero metadata leakage: Models receive ONLY candidate strings.
+    """
+    rng = random.Random(seed)
+    n_pos = n_samples // 2
+    n_neg = n_samples - n_pos
+
+    symbols = "!@#$%^&*"
+    seen_exact: Set[str] = set()
+    candidates: List[str] = []
+    labels: List[int] = []
+    metadata: List[Dict[str, Any]] = []
+
+    # 1. Independent Positives
+    while len([l for l in labels if l == 1]) < n_pos:
+        s1 = rng.choice(INDEPENDENT_PHONETIC_4_STEMS)
+        s2 = rng.choice(INDEPENDENT_PHONETIC_4_STEMS)
+        while s2 == s1:
+            s2 = rng.choice(INDEPENDENT_PHONETIC_4_STEMS)
+
+        u1, u2 = rng.choice(string.ascii_uppercase), rng.choice(string.ascii_uppercase)
+        d1, d2 = rng.choice(string.digits), rng.choice(string.digits)
+        sym1, sym2 = rng.choice(symbols), rng.choice(symbols)
+
+        geom = rng.choice(["interleaved_v2", "mirrored_bracket_v2", "sandwich_v2"])
+        if geom == "interleaved_v2":
+            cand = f"{u1}{s1}{sym1}{d1}{s2}{u2}{sym2}{d2}"
+        elif geom == "mirrored_bracket_v2":
+            cand = f"{sym1}{u1}{d1}{s1}{s2}{d2}{u2}{sym2}"
+        else:
+            cand = f"{d1}{d2}{s1}{s2}{u1}{u2}{sym1}{sym2}"
+
+        # Verify exact signature: 14 chars, 8L, 2U, 2D, 2S
+        assert len(cand) == 14
+        assert sum(1 for c in cand if c.islower()) == 8
+        assert sum(1 for c in cand if c.isupper()) == 2
+        assert sum(1 for c in cand if c.isdigit()) == 2
+        assert sum(1 for c in cand if c in symbols) == 2
+
+        if cand not in seen_exact:
+            seen_exact.add(cand)
+            candidates.append(cand)
+            labels.append(1)
+            metadata.append({
+                "lexical_source": f"{s1}+{s2}",
+                "template_family": f"independent_{geom}",
+                "category": "independent_generator_v2_positive"
+            })
+
+    # 2. Independent Negatives (Independent block-rotation permutation)
+    while len([l for l in labels if l == 0]) < n_neg:
+        lows = [rng.choice(string.ascii_lowercase) for _ in range(8)]
+        ups = [rng.choice(string.ascii_uppercase) for _ in range(2)]
+        digs = [rng.choice(string.digits) for _ in range(2)]
+        sym_list = [rng.choice(symbols) for _ in range(2)]
+
+        pool = lows + ups + digs + sym_list
+        # Dual-pass permutation with modular cycle shift
+        rng.shuffle(pool)
+        shift = rng.randint(1, 13)
+        pool = pool[shift:] + pool[:shift]
+        rng.shuffle(pool)
+
+        cand = "".join(pool)
+        assert len(cand) == 14
+        assert sum(1 for c in cand if c.islower()) == 8
+        assert sum(1 for c in cand if c.isupper()) == 2
+        assert sum(1 for c in cand if c.isdigit()) == 2
+        assert sum(1 for c in cand if c in symbols) == 2
+
+        if cand not in seen_exact:
+            seen_exact.add(cand)
+            candidates.append(cand)
+            labels.append(0)
+            metadata.append({
+                "lexical_source": "none_independent_permutation",
+                "template_family": "independent_latin_scramble",
+                "category": "independent_generator_v2_negative"
+            })
+
+    combined = list(zip(candidates, labels, metadata))
+    rng.shuffle(combined)
+    cands, lbls, meta = zip(*combined)
+    return list(cands), list(lbls), list(meta)
+
 
 
 def generate_independent_holdout_dataset(

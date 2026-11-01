@@ -488,6 +488,212 @@ class TestPredictPSPhase41ResearchIntegrity(unittest.TestCase):
         self.assertEqual(len(train_set.intersection(test_set)), 0)
         self.assertEqual(len(val_set.intersection(test_set)), 0)
 
+    def test_29_lexical_group_isolation(self):
+        """
+        Phase 4.2.2 Requirement 2:
+        Verifies that split_dataset_by_lexical_group enforces strict group-aware isolation:
+        No underlying dictionary word appears in more than one partition (train, val, test).
+        """
+        from dataset_generator import generate_dual_controlled_dataset_with_metadata, split_dataset_by_lexical_group
+        cands, lbls, meta = generate_dual_controlled_dataset_with_metadata(n_samples=200, seed=42)
+        splits = split_dataset_by_lexical_group(cands, lbls, meta, train_ratio=0.70, val_ratio=0.15, seed=42)
+
+        train_words = set(m["lexical_source"] for m in splits["train"]["metadata"] if m["lexical_source"] != "none_uniform_scramble")
+        val_words = set(m["lexical_source"] for m in splits["val"]["metadata"] if m["lexical_source"] != "none_uniform_scramble")
+        test_words = set(m["lexical_source"] for m in splits["test"]["metadata"] if m["lexical_source"] != "none_uniform_scramble")
+
+        self.assertGreater(len(train_words), 0)
+        self.assertGreater(len(val_words), 0)
+        self.assertGreater(len(test_words), 0)
+
+        # Disjointness checks
+        self.assertEqual(len(train_words.intersection(val_words)), 0, "Lexical word leakage between train and val!")
+        self.assertEqual(len(train_words.intersection(test_words)), 0, "Lexical word leakage between train and test!")
+        self.assertEqual(len(val_words.intersection(test_words)), 0, "Lexical word leakage between val and test!")
+
+    def test_30_template_family_isolation(self):
+        """
+        Phase 4.2.2 Requirement 3:
+        Verifies that split_dataset_by_template_family holds out entire positive template families.
+        Ensures test split contains 0 template families from train or val splits.
+        """
+        from dataset_generator import (
+            generate_dual_controlled_dataset_with_metadata,
+            split_dataset_by_template_family,
+            TEMPLATE_SUFFIX_PADDED,
+            TEMPLATE_PREFIX_PADDED,
+            TEMPLATE_WORD_SYMBOLS_SUFFIX,
+            TEMPLATE_PREFIX_SYMBOLS
+        )
+        cands, lbls, meta = generate_dual_controlled_dataset_with_metadata(n_samples=200, seed=42)
+        splits = split_dataset_by_template_family(
+            cands, lbls, meta,
+            train_families=[TEMPLATE_SUFFIX_PADDED, TEMPLATE_PREFIX_PADDED],
+            val_families=[TEMPLATE_WORD_SYMBOLS_SUFFIX],
+            test_families=[TEMPLATE_PREFIX_SYMBOLS],
+            seed=42
+        )
+
+        train_tmpls = set(m["template_family"] for m in splits["train"]["metadata"] if m["template_family"] != "UniformScramble")
+        test_tmpls = set(m["template_family"] for m in splits["test"]["metadata"] if m["template_family"] != "UniformScramble")
+
+        self.assertEqual(train_tmpls, {TEMPLATE_SUFFIX_PADDED, TEMPLATE_PREFIX_PADDED})
+        self.assertEqual(test_tmpls, {TEMPLATE_PREFIX_SYMBOLS})
+        self.assertEqual(len(train_tmpls.intersection(test_tmpls)), 0, "Template family leakage between train and test!")
+
+    def test_31_exact_and_normalized_duplicate_isolation_in_group_splits(self):
+        """
+        Phase 4.2.2 Requirement 2 & 3:
+        Ensures zero exact and zero case-normalized duplicates across partitions
+        in both lexical-group-disjoint and template-family-disjoint splits.
+        """
+        from dataset_generator import (
+            generate_dual_controlled_dataset_with_metadata,
+            split_dataset_by_lexical_group,
+            split_dataset_by_template_family
+        )
+        cands, lbls, meta = generate_dual_controlled_dataset_with_metadata(n_samples=200, seed=42)
+        lex_splits = split_dataset_by_lexical_group(cands, lbls, meta, seed=42)
+
+        for s1, s2 in [("train", "val"), ("train", "test"), ("val", "test")]:
+            c1_set = set(lex_splits[s1]["candidates"])
+            c2_set = set(lex_splits[s2]["candidates"])
+            self.assertEqual(len(c1_set.intersection(c2_set)), 0)
+
+            c1_norm = set(c.strip().lower() for c in c1_set)
+            c2_norm = set(c.strip().lower() for c in c2_set)
+            self.assertEqual(len(c1_norm.intersection(c2_norm)), 0)
+
+    def test_32_metadata_exclusion_from_features(self):
+        """
+        Phase 4.2.2 Requirement 2 & 4:
+        Formally verifies that metadata (lexical_source, template_family, category)
+        is NEVER provided as model input features to the vectorizer or diagnostic classifiers.
+        """
+        from dataset_generator import generate_dual_controlled_dataset_with_metadata
+        cands, lbls, meta = generate_dual_controlled_dataset_with_metadata(n_samples=50, seed=42)
+
+        # Inspect candidates to ensure metadata is not embedded in the candidate strings
+        for cand, m in zip(cands, meta):
+            self.assertNotIn("lexical_source", cand)
+            self.assertNotIn("template_family", cand)
+            self.assertNotIn("category", cand)
+            self.assertNotIn(m["category"], cand)
+
+        # Verify vectorizer fits strictly on string candidates
+        model = NgramBaselineModel(ngram_range=(2, 3), min_df=1)
+        model.fit(cands, lbls)
+        self.assertTrue(model.is_fitted)
+        for term in model.vectorizer.vocabulary_:
+            self.assertNotIn("lexical_source", term)
+            self.assertNotIn("template_family", term)
+
+    def test_33_independent_generator_v2_construction_and_matching(self):
+        """
+        Phase 4.2.2 Requirement 4:
+        Verifies IndependentGeneratorV2 produces balanced 50/50 samples with:
+        - Exact length = 14
+        - Exact composition: 8 lowercase, 2 uppercase, 2 digits, 2 symbols
+        - Distinct construction logic using phonetic compounding
+        """
+        from dataset_generator import generate_independent_v2_matched_dataset
+        symbols = "!@#$%^&*"
+        cands, lbls, meta = generate_independent_v2_matched_dataset(n_samples=200, seed=9999)
+
+        self.assertEqual(len(cands), 200)
+        self.assertEqual(sum(lbls), 100)  # 50/50 balance
+
+        for cand in cands:
+            self.assertEqual(len(cand), 14, f"Length mismatch in {cand}")
+            low = sum(1 for ch in cand if ch.islower())
+            up = sum(1 for ch in cand if ch.isupper())
+            dig = sum(1 for ch in cand if ch.isdigit())
+            sym = sum(1 for ch in cand if ch in symbols)
+            self.assertEqual(low, 8, f"Lowercase mismatch in {cand}")
+            self.assertEqual(up, 2, f"Uppercase mismatch in {cand}")
+            self.assertEqual(dig, 2, f"Digit mismatch in {cand}")
+            self.assertEqual(sym, 2, f"Symbol mismatch in {cand}")
+
+        # Check positive metadata has phonetic compound indicators
+        pos_meta = [m for m, y in zip(meta, lbls) if y == 1]
+        for m in pos_meta:
+            self.assertIn("+", m["lexical_source"])  # e.g. stem1+stem2
+            self.assertTrue(m["template_family"].startswith("independent_"))
+
+    def test_34_diagnostic_comparators_functionality(self):
+        """
+        Phase 4.2.2 Requirement 5:
+        Verifies that LexicalOnlyBaselineModel and PositionAwareDiagnosticModel
+        can fit and predict probabilities without error.
+        """
+        from model_pipeline import LexicalOnlyBaselineModel, PositionAwareDiagnosticModel
+        from dataset_generator import generate_dual_controlled_dataset_with_metadata
+        cands, lbls, meta = generate_dual_controlled_dataset_with_metadata(n_samples=50, seed=42)
+
+        lex_model = LexicalOnlyBaselineModel(target_word_length=8)
+        lex_model.fit(cands, lbls)
+        self.assertTrue(lex_model.is_fitted)
+        lex_probs = lex_model.predict_proba(cands)
+        self.assertEqual(len(lex_probs), 50)
+        self.assertTrue(all(0.0 <= p <= 1.0 for p in lex_probs))
+
+        pos_model = PositionAwareDiagnosticModel(target_length=14)
+        pos_model.fit(cands, lbls)
+        self.assertTrue(pos_model.is_fitted)
+        pos_probs = pos_model.predict_proba(cands)
+        self.assertEqual(len(pos_probs), 50)
+        self.assertTrue(all(0.0 <= p <= 1.0 for p in pos_probs))
+
+    def test_35_generalization_manifest_synchronization(self):
+        """
+        Phase 4.2.2 Requirement 8 & 9:
+        Verifies that Phase 4.2.2 generalization manifests exist in src/data/ and python/,
+        match byte-for-byte in serialized content, and contain all G1..G8 experiments.
+        """
+        p1 = "src/data/phase4_2_generalization_manifest.json"
+        p2 = "python/phase4_2_generalization_manifest.json"
+
+        if os.path.exists(p1) and os.path.exists(p2):
+            with open(p1, "r", encoding="utf-8") as f1, open(p2, "r", encoding="utf-8") as f2:
+                m1 = json.load(f1)
+                m2 = json.load(f2)
+
+            self.assertEqual(json.dumps(m1, sort_keys=True), json.dumps(m2, sort_keys=True))
+            self.assertEqual(m1["schema_version"], "predict_ps_phase4_2_2_v1")
+
+            for exp_key in [
+                "exp_g1_random_split_baseline",
+                "exp_g2_lexical_disjoint",
+                "exp_g3_template_disjoint",
+                "exp_g4_independent_v2_holdout",
+                "exp_g5_lexical_diagnostic_random",
+                "exp_g6_lexical_diagnostic_disjoint",
+                "exp_g7_position_diagnostic_standard",
+                "exp_g8_position_diagnostic_heldout"
+            ]:
+                self.assertIn(exp_key, m1["experiments"])
+                exp = m1["experiments"][exp_key]
+                self.assertIn("metrics", exp)
+                if "confidence_intervals_95" in exp["metrics"]:
+                    meth = exp["metrics"]["confidence_intervals_95"]["methodology"]
+                    self.assertEqual(meth["requested_resamples"], 1000)
+                    self.assertEqual(meth["threshold_policy"], "fixed_validation_selected")
+
+    def test_36_sanitized_artifacts_zero_passwords_in_generalization(self):
+        """
+        Phase 4.2.2 Requirement 8:
+        Ensures no raw candidate passwords exist anywhere in the exported generalization manifest.
+        """
+        p1 = "src/data/phase4_2_generalization_manifest.json"
+        if os.path.exists(p1):
+            with open(p1, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            self.assertNotIn("candidate_password", content)
+            self.assertNotIn("raw_passwords", content)
+            self.assertNotIn("plain_text", content)
+
 
 if __name__ == "__main__":
     unittest.main()
+

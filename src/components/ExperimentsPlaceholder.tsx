@@ -37,17 +37,22 @@ import { getBaselineSpecs, validatePhase4ArtifactSchema, validatePhase41Manifest
 import { Phase4Artifact, Phase4PipelineStatus, Phase41Manifest, Phase41ExperimentResult } from '../types/research';
 import rawCanonicalArtifact from '../data/phase4_baseline_metrics.json';
 import rawPhase41Manifest from '../data/phase4_1_experiments_manifest.json';
+import rawGeneralizationManifest from '../data/phase4_2_generalization_manifest.json';
+import { Phase42GeneralizationManifest, Phase42GeneralizationExperimentResult } from '../types/research';
 
 // Default canonical validation artifacts
 const DEFAULT_VALIDATION_ARTIFACT: Phase4Artifact = rawCanonicalArtifact as unknown as Phase4Artifact;
 const CANONICAL_PHASE41_MANIFEST: Phase41Manifest = rawPhase41Manifest as unknown as Phase41Manifest;
+const CANONICAL_PHASE42_GENERALIZATION_MANIFEST: Phase42GeneralizationManifest = rawGeneralizationManifest as unknown as Phase42GeneralizationManifest;
 
 export const ExperimentsPlaceholder: React.FC = () => {
   const baselines = getBaselineSpecs();
   const [pipelineState, setPipelineState] = useState<Phase4PipelineStatus>('synthetic_pipeline_validation');
   const [activeArtifact, setActiveArtifact] = useState<Phase4Artifact>(DEFAULT_VALIDATION_ARTIFACT);
   const [manifestData, setManifestData] = useState<Phase41Manifest>(CANONICAL_PHASE41_MANIFEST);
-  const [selectedExpId, setSelectedExpId] = useState<string>('exp1_original_ngram_baseline');
+  const [genManifestData, setGenManifestData] = useState<Phase42GeneralizationManifest>(CANONICAL_PHASE42_GENERALIZATION_MANIFEST);
+  const [experimentTrack, setExperimentTrack] = useState<'generalization_audit' | 'ablation_matrix'>('generalization_audit');
+  const [selectedExpId, setSelectedExpId] = useState<string>('exp_g1_random_split_baseline');
   const [importJsonText, setImportJsonText] = useState('');
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -94,8 +99,10 @@ export const ExperimentsPlaceholder: React.FC = () => {
   };
 
   const currentMetrics = activeArtifact.evaluation_metrics.test_split;
-  const experimentsList: Phase41ExperimentResult[] = Object.values(manifestData.experiments);
-  const activeSelectedExp = experimentsList.find(e => e.experiment_id === selectedExpId) || experimentsList[0];
+  const ablationList: Phase41ExperimentResult[] = Object.values(manifestData.experiments);
+  const generalizationList: Phase42GeneralizationExperimentResult[] = Object.values(genManifestData.experiments);
+  const activeList = experimentTrack === 'generalization_audit' ? generalizationList : ablationList;
+  const activeSelectedExp = activeList.find(e => e.experiment_id === selectedExpId) || activeList[0];
 
   return (
     <div className="space-y-8">
@@ -197,14 +204,55 @@ export const ExperimentsPlaceholder: React.FC = () => {
       ) : (
         <>
           {/* ========================================================================= */}
-          {/* SECTION: Phase 4.2 — Statistical Correction, Integrity & Baseline Validation */}
+          {/* SECTION: Phase 4.2 & 4.2.2 — Empirical Ablation & Generalization Audit     */}
           {/* ========================================================================= */}
           <section className="bg-slate-900 border border-indigo-900/40 rounded-xl p-6 space-y-6 relative overflow-hidden">
+            {/* Track Switcher */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950 p-2 rounded-lg border border-slate-800">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-mono text-slate-400 px-2 font-semibold">Track Selector:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExperimentTrack('generalization_audit');
+                    setSelectedExpId('exp_g1_random_split_baseline');
+                  }}
+                  className={`px-3 py-1.5 rounded-md text-xs font-mono transition-colors ${
+                    experimentTrack === 'generalization_audit'
+                      ? 'bg-indigo-600 text-white font-bold shadow'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                  }`}
+                >
+                  Track B: Phase 4.2.2 Generalization &amp; Leakage Audit (8 Tracks)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExperimentTrack('ablation_matrix');
+                    setSelectedExpId('exp1_original_ngram_baseline');
+                  }}
+                  className={`px-3 py-1.5 rounded-md text-xs font-mono transition-colors ${
+                    experimentTrack === 'ablation_matrix'
+                      ? 'bg-indigo-600 text-white font-bold shadow'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                  }`}
+                >
+                  Track A: Phase 4.2 Baseline &amp; Shortcut Ablation (8 Experiments)
+                </button>
+              </div>
+
+              <div className="text-[11px] font-mono text-slate-400 px-2">
+                Showing: <span className="text-white font-semibold">{activeList.length} Experiments</span>
+              </div>
+            </div>
+
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
-                    PHASE 4.2 VALIDATION ACTIVE
+                    {experimentTrack === 'generalization_audit'
+                      ? 'PHASE 4.2.2 GENERALIZATION AUDIT ACTIVE'
+                      : 'PHASE 4.2 ABLATION MATRIX ACTIVE'}
                   </span>
                   <span className="px-2 py-0.5 rounded text-[11px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40">
                     Status: Canonical Run Verified (N=4,000, Holdout=1,000, Resamples=1,000)
@@ -212,10 +260,16 @@ export const ExperimentsPlaceholder: React.FC = () => {
                 </div>
                 <h2 className="text-base font-bold text-white mt-1 flex items-center gap-2">
                   <Scale className="w-5 h-5 text-indigo-400" />
-                  <span>Phase 4.2 — Statistical Correction, Artifact Synchronization &amp; Integrity Gate</span>
+                  <span>
+                    {experimentTrack === 'generalization_audit'
+                      ? 'Phase 4.2.2 — Lexical Leakage, Template Generalization & Independent Generator Audit'
+                      : 'Phase 4.2 — Statistical Correction, Artifact Synchronization & Integrity Gate'}
+                  </span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Controlled empirical ablation: Investigating synthetic-data shortcuts, dual length &amp; composition matching, and out-of-distribution transfer
+                  {experimentTrack === 'generalization_audit'
+                    ? 'Rigorous audit of lexical word isolation, template-family holdout, and independent generator V2 under matched length (14) and composition'
+                    : 'Controlled empirical ablation: Investigating synthetic-data shortcuts, dual length & composition matching, and out-of-distribution transfer'}
                 </p>
               </div>
 
@@ -232,59 +286,105 @@ export const ExperimentsPlaceholder: React.FC = () => {
                 <span className="text-slate-700">•</span>
                 <div>
                   <span className="text-slate-500">Tests:</span>{' '}
-                  <span className="text-sky-400 font-semibold">28/28 Py OK • 26/26 TS OK</span>
+                  <span className="text-sky-400 font-semibold">36/36 Py OK • 27/27 TS OK</span>
                 </div>
               </div>
             </div>
 
-            {/* Diagnostic Findings Alert Cards (4 Key Empirical Discoveries) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-3.5 bg-amber-950/20 border border-amber-800/40 rounded-lg space-y-1">
-                <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>1. Length Shortcut</span>
+            {/* Diagnostic Findings Alert Cards */}
+            {experimentTrack === 'generalization_audit' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-3.5 bg-emerald-950/20 border border-emerald-800/40 rounded-lg space-y-1">
+                  <div className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>1. Lexical Group Isolation</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Dictionary words partitioned strictly across splits: <strong className="text-white">207 train</strong>, <strong className="text-white">44 val</strong>, and <strong className="text-white">45 test</strong>. <strong className="text-emerald-300">0 shared words</strong> (zero lexical leakage verified).
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  On unconstrained data, candidate length alone (Exp 5) yields <strong className="text-white">94.00% accuracy</strong> and <strong className="text-white">0.9896 ROC-AUC</strong> due to a <code className="text-amber-200">6.6 char</code> delta between positive (9.3) and negative (15.9) samples.
-                </p>
-              </div>
 
-              <div className="p-3.5 bg-amber-950/20 border border-amber-800/40 rounded-lg space-y-1">
-                <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>2. Composition Shortcut</span>
+                <div className="p-3.5 bg-amber-950/20 border border-amber-800/40 rounded-lg space-y-1">
+                  <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>2. Lexical Memorization Collapse</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Lexical-only diagnostic scores <strong className="text-amber-300">99.67%</strong> on random splits where words repeat, but collapses to <strong className="text-white">50.00% (ROC-AUC 0.5000)</strong> on lexical-disjoint splits, proving random splits induce word memorization shortcuts.
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Coarse character-class counts alone (Exp 6) achieve <strong className="text-white">99.50% accuracy</strong>, demonstrating that unconstrained synthetic templates are trivially separable by character set frequencies.
-                </p>
-              </div>
 
-              <div className="p-3.5 bg-emerald-950/20 border border-emerald-800/40 rounded-lg space-y-1">
-                <div className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>3. Dual-Control Subwords</span>
+                <div className="p-3.5 bg-indigo-950/20 border border-indigo-800/40 rounded-lg space-y-1">
+                  <div className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                    <SlidersHorizontal className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <span>3. Positional Slot Breakdown</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Position-aware diagnostic achieves <strong className="text-indigo-300">99.50%</strong> on standard templates by memorizing uppercase/digit slots, but collapses to <strong className="text-white">50.00% (ROC-AUC 0.7158)</strong> when evaluated on held-out template families.
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  When length (14) AND character counts (8 lower, 2 upper, 2 digits, 2 symbols) are strictly matched (Exp 7 &amp; 8), composition diagnostic collapses to <strong className="text-slate-300">50%</strong> while n-grams retain <strong className="text-emerald-300">100%</strong> on in-distribution subwords.
-                </p>
-              </div>
 
-              <div className="p-3.5 bg-red-950/20 border border-red-800/40 rounded-lg space-y-1">
-                <div className="text-xs font-bold text-red-300 flex items-center gap-1.5">
-                  <TrendingDown className="w-4 h-4 text-red-400 shrink-0" />
-                  <span>4. OOD Transfer Collapse</span>
+                <div className="p-3.5 bg-red-950/20 border border-red-800/40 rounded-lg space-y-1">
+                  <div className="text-xs font-bold text-red-300 flex items-center gap-1.5">
+                    <TrendingDown className="w-4 h-4 text-red-400 shrink-0" />
+                    <span>4. Independent Generator V2</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Tested on novel phonetic compound stems with bracket/interleaved affix geometries (matched 14 chars), model accuracy drops to <strong className="text-red-300">75.00%</strong> and FSR surges to <strong className="text-red-400">49.20%</strong>, confirming generator dependence.
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  When evaluated against novel pattern grammars (Exp 4 holdout: ISO dates, PINs, zigzag walks), False-Strong Rate surges to <strong className="text-red-300">71.20%</strong> and Recall drops to <strong className="text-white">28.80%</strong>. Validates hypothesis RQ2 for structural feature fusion.
-                </p>
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-3.5 bg-amber-950/20 border border-amber-800/40 rounded-lg space-y-1">
+                  <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>1. Length Shortcut</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    On unconstrained data, candidate length alone (Exp 5) yields <strong className="text-white">94.00% accuracy</strong> and <strong className="text-white">0.9896 ROC-AUC</strong> due to a <code className="text-amber-200">6.6 char</code> delta between positive (9.3) and negative (15.9) samples.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-amber-950/20 border border-amber-800/40 rounded-lg space-y-1">
+                  <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>2. Composition Shortcut</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Coarse character-class counts alone (Exp 6) achieve <strong className="text-white">99.50% accuracy</strong>, demonstrating that unconstrained synthetic templates are trivially separable by character set frequencies.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-emerald-950/20 border border-emerald-800/40 rounded-lg space-y-1">
+                  <div className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>3. Dual-Control Subwords</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    When length (14) AND character counts (8 lower, 2 upper, 2 digits, 2 symbols) are strictly matched (Exp 7 &amp; 8), composition diagnostic collapses to <strong className="text-slate-300">50%</strong> while n-grams retain <strong className="text-emerald-300">100%</strong> on in-distribution subwords.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-red-950/20 border border-red-800/40 rounded-lg space-y-1">
+                  <div className="text-xs font-bold text-red-300 flex items-center gap-1.5">
+                    <TrendingDown className="w-4 h-4 text-red-400 shrink-0" />
+                    <span>4. OOD Transfer Collapse</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    When evaluated against novel pattern grammars (Exp 4 holdout: ISO dates, PINs, zigzag walks), False-Strong Rate surges to <strong className="text-red-300">71.20%</strong> and Recall drops to <strong className="text-white">28.80%</strong>. Validates hypothesis RQ2 for structural feature fusion.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* 8-Experiment Comparative Table */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold font-mono text-slate-300 uppercase tracking-wider">
-                  Controlled Empirical Ablation Matrix ({experimentsList.length} Experiments)
+                  {experimentTrack === 'generalization_audit'
+                    ? `Generalization & Leakage Audit Matrix (${activeList.length} Tracks)`
+                    : `Controlled Empirical Ablation Matrix (${activeList.length} Experiments)`}
                 </h3>
                 <span className="text-[11px] font-mono text-slate-400">
                   Select an experiment row to inspect detailed diagnostics below
@@ -308,7 +408,7 @@ export const ExperimentsPlaceholder: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 text-slate-300">
-                    {experimentsList.map((exp) => {
+                    {activeList.map((exp) => {
                       const isSelected = selectedExpId === exp.experiment_id;
                       const f1Ci = exp.metrics.confidence_intervals_95?.macro_f1;
                       return (

@@ -404,3 +404,55 @@ export interface Phase41Manifest {
   methodological_conclusions: string[];
   limitations: string[];
 }
+
+export interface Phase42GeneralizationAudits {
+  lexical_group_isolation: {
+    unique_positive_words_total: number;
+    train_words_count: number;
+    val_words_count: number;
+    test_words_count: number;
+    shared_train_val_words: number;
+    shared_train_test_words: number;
+    shared_val_test_words: number;
+    lexical_isolation_verified: boolean;
+  };
+  template_family_isolation: {
+    train_families: string[];
+    val_families: string[];
+    test_held_out_families: string[];
+    shared_train_test_families: number;
+    template_isolation_verified: boolean;
+  };
+  independent_generator_v2_provenance: {
+    generator_type: string;
+    construction_logic: string;
+    length_matching: string;
+    composition_matching: string;
+    sample_count: number;
+    seed: number;
+    metadata_leakage_prevented: boolean;
+  };
+}
+
+export interface Phase42GeneralizationExperimentResult extends Phase41ExperimentResult {
+  split_type?: string;
+  evaluation_scope?: string;
+}
+
+export interface Phase42GeneralizationManifest {
+  schema_version: 'predict_ps_phase4_2_2_v1';
+  manifest_type: string;
+  timestamp_utc: string;
+  phase: string;
+  environment: {
+    python_version: string;
+    platform: string;
+    scikit_learn_version: string;
+    numpy_version: string;
+    scipy_version: string;
+  };
+  generalization_audits: Phase42GeneralizationAudits;
+  experiments: Record<string, Phase42GeneralizationExperimentResult>;
+  methodological_conclusions: string[];
+  limitations: string[];
+}
