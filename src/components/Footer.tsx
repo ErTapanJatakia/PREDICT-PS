@@ -45,7 +45,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
               <span>Phase Status</span>
             </div>
             <div className="text-slate-400">
-              Current: <strong className="text-emerald-400">Phase 4.1 (Research Integrity & Baseline Validation)</strong>
+              Current: <strong className="text-emerald-400">Phase 4.2 (Statistical Correction & Integrity Gate)</strong>
             </div>
             <div className="text-slate-500">
               Next Gate: Phase 5 Explainable Feature-Fusion Architecture

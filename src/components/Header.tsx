@@ -23,7 +23,7 @@ export const Header: React.FC = () => {
         </div>
         <div className="hidden sm:flex items-center gap-2 text-xs text-emerald-300/90 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/80">
           <Lock className="w-3 h-3 text-emerald-400" aria-hidden="true" />
-          <span>Phase 4.1: Research Integrity & Baseline Validation</span>
+          <span>Phase 4.2: Research Integrity & Statistical Validation</span>
         </div>
       </div>
 

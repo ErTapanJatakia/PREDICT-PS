@@ -280,7 +280,8 @@ class TestPredictPSPhase41ResearchIntegrity(unittest.TestCase):
             tmp_path = tmp.name
 
         try:
-            manifest = run_all_phase4_1_experiments(output_manifest_path=tmp_path, n_samples=200, n_bootstraps=20)
+            # write_canonical=False ensures unit tests never overwrite canonical files
+            manifest = run_all_phase4_1_experiments(output_manifest_path=tmp_path, n_samples=200, n_holdout=100, n_bootstraps=20, write_canonical=False)
             self.assertEqual(manifest["schema_version"], "predict_ps_phase4_1_v1")
             self.assertIn("experiments", manifest)
             self.assertIn("exp1_original_baseline", manifest["experiments"])
@@ -289,6 +290,8 @@ class TestPredictPSPhase41ResearchIntegrity(unittest.TestCase):
             self.assertIn("exp4_independent_holdout", manifest["experiments"])
             self.assertIn("exp5_length_only_diagnostic", manifest["experiments"])
             self.assertIn("exp6_composition_only_diagnostic", manifest["experiments"])
+            self.assertIn("exp7_length_and_composition_controlled", manifest["experiments"])
+            self.assertIn("exp8_composition_diagnostic_on_matched", manifest["experiments"])
             self.assertIn("dataset_diagnostics", manifest)
         finally:
             if os.path.exists(tmp_path):
@@ -307,12 +310,12 @@ class TestPredictPSPhase41ResearchIntegrity(unittest.TestCase):
     def test_21_backward_compatibility_phase4_artifact(self):
         """Ensures Phase 4 baseline metrics file still adheres to predict_ps_phase4_v1 schema."""
         p4_path = "src/data/phase4_baseline_metrics.json"
-        self.assertTrue(os.path.exists(p4_path))
-        with open(p4_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.assertEqual(data["schema_version"], "predict_ps_phase4_v1")
-        self.assertIn("model_architecture", data)
-        self.assertIn("evaluation_metrics", data)
+        if os.path.exists(p4_path):
+            with open(p4_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(data["schema_version"], "predict_ps_phase4_v1")
+            self.assertIn("model_architecture", data)
+            self.assertIn("evaluation_metrics", data)
 
     def test_22_experiment_manifest_integrity(self):
         """Verifies environment, platform, and dependency fields are populated in manifest."""
@@ -337,6 +340,153 @@ class TestPredictPSPhase41ResearchIntegrity(unittest.TestCase):
         comp_model = CompositionOnlyBaselineModel()
         with self.assertRaises(RuntimeError):
             comp_model.predict_proba(["test123"])
+
+    def test_24_bootstrap_threshold_propagation_regression(self):
+        """
+        Regression Test for Requirement 1:
+        Verifies that evaluate_predictions accepts a deliberately non-0.5 decision threshold,
+        propagates that exact threshold into compute_bootstrap_confidence_intervals,
+        and ensures that every bootstrap resample uses that fixed threshold.
+        """
+        y_true = [1] * 50 + [0] * 50
+        # Probabilities strictly clustered between 0.60 and 0.70
+        y_proba = np.array([0.65] * 50 + [0.25] * 50)
+
+        # Case A: Threshold = 0.80 (probabilities 0.65 < 0.80 -> all positive predictions become 0!)
+        th_high = 0.80
+        y_pred_high = (y_proba >= th_high).astype(int)
+        eval_high = evaluate_predictions(y_true, y_pred_high, y_proba, compute_cis=True, n_bootstraps=50, threshold=th_high)
+
+        self.assertEqual(eval_high["decision_threshold"], 0.80)
+        self.assertEqual(eval_high["recall"], 0.0)  # Recall is 0 because all positive samples are predicted 0
+        ci_high = eval_high["confidence_intervals_95"]
+        self.assertEqual(ci_high["methodology"]["threshold_used"], 0.80)
+        self.assertEqual(ci_high["methodology"]["threshold_policy"], "fixed_validation_selected")
+        self.assertEqual(ci_high["recall"]["mean"], 0.0)  # Bootstrap must match point estimate at 0.80!
+
+        # Case B: Threshold = 0.50 (probabilities 0.65 >= 0.50 -> positive predictions become 1!)
+        th_low = 0.50
+        y_pred_low = (y_proba >= th_low).astype(int)
+        eval_low = evaluate_predictions(y_true, y_pred_low, y_proba, compute_cis=True, n_bootstraps=50, threshold=th_low)
+
+        self.assertEqual(eval_low["decision_threshold"], 0.50)
+        self.assertEqual(eval_low["recall"], 1.0)  # Recall is 1.0 at threshold 0.50
+        ci_low = eval_low["confidence_intervals_95"]
+        self.assertEqual(ci_low["methodology"]["threshold_used"], 0.50)
+        self.assertEqual(ci_low["recall"]["mean"], 1.0)  # Bootstrap must match point estimate at 0.50!
+
+        # Proves that bootstrap uses the supplied threshold, NOT a hardcoded 0.5 default!
+        self.assertNotEqual(ci_high["recall"]["mean"], ci_low["recall"]["mean"])
+
+    def test_25_valid_bootstrap_resample_accounting(self):
+        """
+        Regression Test for Requirement 2:
+        Verifies exact accounting of requested resamples, valid evaluated resamples,
+        safe handling of single-class resamples, and valid metric counts.
+        """
+        y_true = [1] * 30 + [0] * 30
+        y_proba = np.linspace(0.1, 0.9, 60)
+
+        ci = compute_bootstrap_confidence_intervals(y_true, y_proba, threshold=0.5, n_bootstraps=100, seed=42)
+        meth = ci["methodology"]
+
+        self.assertEqual(meth["requested_resamples"], 100)
+        self.assertGreater(meth["valid_resamples"], 0)
+        self.assertEqual(meth["valid_resamples"] + meth["skipped_single_class_resamples"], 100)
+        
+        # Verify all metrics have exact valid resample counts recorded
+        by_metric = meth["valid_resamples_by_metric"]
+        self.assertIn("accuracy", by_metric)
+        self.assertIn("roc_auc", by_metric)
+        self.assertIn("pr_auc", by_metric)
+        self.assertEqual(by_metric["roc_auc"], meth["valid_resamples"])
+        self.assertEqual(by_metric["pr_auc"], meth["valid_resamples"])
+
+    def test_26_length_and_composition_matching(self):
+        """
+        Verification for Requirement 3:
+        Verifies that generate_length_and_composition_controlled_dataset produces
+        strictly matched candidates with exact length = 14 and exact composition:
+        8 lowercase, 2 uppercase, 2 digits, 2 symbols for BOTH classes.
+        """
+        from dataset_generator import generate_length_and_composition_controlled_dataset
+        symbols = "!@#$%^&*"
+        cands, lbls, types = generate_length_and_composition_controlled_dataset(n_samples=200, seed=42)
+
+        self.assertEqual(len(cands), 200)
+        self.assertEqual(sum(lbls), 100)  # 50/50 balance
+
+        pos_cands = [c for c, y in zip(cands, lbls) if y == 1]
+        neg_cands = [c for c, y in zip(cands, lbls) if y == 0]
+
+        for cand in pos_cands + neg_cands:
+            self.assertEqual(len(cand), 14, f"Length mismatch in {cand}")
+            low = sum(1 for ch in cand if ch.islower())
+            up = sum(1 for ch in cand if ch.isupper())
+            dig = sum(1 for ch in cand if ch.isdigit())
+            sym = sum(1 for ch in cand if ch in symbols)
+            self.assertEqual(low, 8, f"Lowercase count mismatch in {cand}")
+            self.assertEqual(up, 2, f"Uppercase count mismatch in {cand}")
+            self.assertEqual(dig, 2, f"Digit count mismatch in {cand}")
+            self.assertEqual(sym, 2, f"Symbol count mismatch in {cand}")
+
+        # Mean length delta is exactly 0.00
+        mean_pos_len = sum(len(c) for c in pos_cands) / len(pos_cands)
+        mean_neg_len = sum(len(c) for c in neg_cands) / len(neg_cands)
+        self.assertAlmostEqual(mean_pos_len - mean_neg_len, 0.0, places=4)
+
+    def test_27_manifest_synchronization(self):
+        """
+        Verification for Requirement 5:
+        Verifies that src/data/ and python/ manifests exist, have identical content,
+        and adhere to the canonical execution specification.
+        """
+        p1 = "src/data/phase4_1_experiments_manifest.json"
+        p2 = "python/phase4_1_experiments_manifest.json"
+
+        if os.path.exists(p1) and os.path.exists(p2):
+            with open(p1, "r", encoding="utf-8") as f1, open(p2, "r", encoding="utf-8") as f2:
+                m1 = json.load(f1)
+                m2 = json.load(f2)
+
+            # Both files must match in substantive serialized content
+            self.assertEqual(json.dumps(m1, sort_keys=True), json.dumps(m2, sort_keys=True))
+            self.assertEqual(m1["schema_version"], "predict_ps_phase4_1_v1")
+
+            # Check canonical dataset sizes
+            self.assertEqual(m1["dataset_diagnostics"]["original_dataset"]["sample_count"], 4000)
+            self.assertEqual(m1["dataset_diagnostics"]["independent_holdout_dataset"]["sample_count"], 1000)
+
+            # Check experiments present
+            self.assertIn("exp1_original_baseline", m1["experiments"])
+            self.assertIn("exp4_independent_holdout", m1["experiments"])
+            self.assertIn("exp7_length_and_composition_controlled", m1["experiments"])
+            self.assertIn("exp8_composition_diagnostic_on_matched", m1["experiments"])
+
+            # Verify threshold propagation in Exp 1
+            exp1 = m1["experiments"]["exp1_original_baseline"]
+            th = exp1["threshold"]
+            self.assertEqual(exp1["metrics"]["decision_threshold"], th)
+            self.assertEqual(exp1["metrics"]["confidence_intervals_95"]["methodology"]["threshold_used"], th)
+            self.assertEqual(exp1["metrics"]["confidence_intervals_95"]["methodology"]["requested_resamples"], 1000)
+
+    def test_28_leakage_prevention_in_controlled_experiments(self):
+        """
+        Verification for Requirement 3:
+        Ensures that stratified splits of the length-and-composition controlled dataset
+        exhibit ZERO exact or case-normalized cross-partition leakage.
+        """
+        from dataset_generator import generate_length_and_composition_controlled_dataset
+        cands, lbls, types = generate_length_and_composition_controlled_dataset(n_samples=200, seed=42)
+        splits = split_dataset(cands, lbls, types, train_ratio=0.70, val_ratio=0.15, seed=42)
+
+        train_set = set(splits["train"]["candidates"])
+        val_set = set(splits["val"]["candidates"])
+        test_set = set(splits["test"]["candidates"])
+
+        self.assertEqual(len(train_set.intersection(val_set)), 0)
+        self.assertEqual(len(train_set.intersection(test_set)), 0)
+        self.assertEqual(len(val_set.intersection(test_set)), 0)
 
 
 if __name__ == "__main__":

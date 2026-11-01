@@ -294,8 +294,15 @@ export interface Phase41Metrics extends Phase4Metrics {
     roc_auc: MetricConfidenceInterval;
     methodology: {
       technique: string;
-      resamples: number;
+      requested_resamples?: number;
+      valid_resamples?: number;
+      skipped_single_class_resamples?: number;
+      valid_resamples_by_metric?: Record<string, number>;
       seed: number;
+      threshold_used?: number;
+      threshold_policy?: string;
+      confidence_level?: number;
+      resamples?: number;
       note: string;
     };
   };
@@ -389,17 +396,11 @@ export interface Phase41Manifest {
     original_dataset: Phase41DatasetDiagnostics;
     length_controlled_dataset: Phase41DatasetDiagnostics;
     charset_controlled_dataset: Phase41DatasetDiagnostics;
+    length_and_composition_controlled_dataset?: Phase41DatasetDiagnostics;
     independent_holdout_dataset: Phase41DatasetDiagnostics;
     partition_isolation_audit: Phase41IsolationAudit;
   };
-  experiments: {
-    exp1_original_baseline: Phase41ExperimentResult;
-    exp2_length_controlled: Phase41ExperimentResult;
-    exp3_charset_controlled: Phase41ExperimentResult;
-    exp4_independent_holdout: Phase41ExperimentResult;
-    exp5_length_only_diagnostic: Phase41ExperimentResult;
-    exp6_composition_only_diagnostic: Phase41ExperimentResult;
-  };
+  experiments: Record<string, Phase41ExperimentResult>;
   methodological_conclusions: string[];
   limitations: string[];
 }

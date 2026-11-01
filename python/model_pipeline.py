@@ -228,33 +228,52 @@ def compute_calibration_curve(
     }
 
 
+def _fast_roc_auc(y_true_binary: np.ndarray, y_score: np.ndarray) -> float:
+    """Mann-Whitney U statistic calculation for exact fast ROC-AUC."""
+    order = np.argsort(y_score)
+    rank = np.empty_like(order)
+    rank[order] = np.arange(len(y_score)) + 1
+    pos_mask = (y_true_binary == 1)
+    n_pos = int(np.sum(pos_mask))
+    n_neg = len(y_true_binary) - n_pos
+    if n_pos == 0 or n_neg == 0:
+        return 0.5
+    u = np.sum(rank[pos_mask]) - (n_pos * (n_pos + 1)) / 2.0
+    return float(u / (n_pos * n_neg))
+
+
 def compute_bootstrap_confidence_intervals(
     y_true: List[int],
     y_proba: np.ndarray,
     threshold: float = 0.5,
     n_bootstraps: int = 1000,
     seed: int = 42
-) -> Dict[str, Dict[str, float]]:
+) -> Dict[str, Any]:
     """
     Computes 95% bootstrap confidence intervals for key performance metrics.
-    Uses percentile method with fixed seed for exact reproducibility.
+    Uses empirical percentile method with fixed seed for exact reproducibility.
+    Propagates fixed validation-selected threshold across every bootstrap resample.
+    Evaluates ranking and classification metrics across all valid resamples.
     """
     rng = np.random.RandomState(seed)
     y_true_arr = np.array(y_true)
     n = len(y_true_arr)
 
     accs, precs, recs, f1s, fsrs, pr_aucs, roc_aucs = [], [], [], [], [], [], []
+    skipped_single_class = 0
 
-    for i in range(n_bootstraps):
+    for _ in range(n_bootstraps):
         idx = rng.randint(0, n, size=n)
         sample_true = y_true_arr[idx]
         sample_proba = y_proba[idx]
-        sample_pred = (sample_proba >= threshold).astype(int)
 
-        n_pos = np.sum(sample_true == 1)
+        n_pos = int(np.sum(sample_true == 1))
         n_neg = len(sample_true) - n_pos
         if n_pos == 0 or n_neg == 0:
+            skipped_single_class += 1
             continue
+
+        sample_pred = (sample_proba >= threshold).astype(int)
 
         tp = int(np.sum((sample_true == 1) & (sample_pred == 1)))
         tn = int(np.sum((sample_true == 0) & (sample_pred == 0)))
@@ -272,17 +291,12 @@ def compute_bootstrap_confidence_intervals(
         fsr = (fn / (tp + fn)) if (tp + fn) > 0 else 0.0
         fsrs.append(fsr)
 
-        # Compute ranking metrics on subset of resamples for high performance
-        if i < min(n_bootstraps, 150):
-            try:
-                roc_aucs.append(float(roc_auc_score(sample_true, sample_proba)))
-            except ValueError:
-                pass
-
-            try:
-                pr_aucs.append(float(average_precision_score(sample_true, sample_proba)))
-            except ValueError:
-                pass
+        # Ranking metrics computed on all valid two-class resamples
+        roc_aucs.append(_fast_roc_auc(sample_true, sample_proba))
+        try:
+            pr_aucs.append(float(average_precision_score(sample_true, sample_proba)))
+        except ValueError:
+            pr_aucs.append(0.5)
 
     def get_ci(values: List[float]) -> Dict[str, float]:
         if not values:
@@ -303,8 +317,22 @@ def compute_bootstrap_confidence_intervals(
         "roc_auc": get_ci(roc_aucs),
         "methodology": {
             "technique": "Non-parametric empirical percentile bootstrap",
-            "resamples": n_bootstraps,
+            "requested_resamples": n_bootstraps,
+            "valid_resamples": len(accs),
+            "skipped_single_class_resamples": skipped_single_class,
+            "valid_resamples_by_metric": {
+                "accuracy": len(accs),
+                "precision": len(precs),
+                "recall": len(recs),
+                "macro_f1": len(f1s),
+                "false_strong_rate": len(fsrs),
+                "roc_auc": len(roc_aucs),
+                "pr_auc": len(pr_aucs)
+            },
             "seed": seed,
+            "threshold_used": round(float(threshold), 3),
+            "threshold_policy": "fixed_validation_selected",
+            "confidence_level": 0.95,
             "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
         }
     }
@@ -347,7 +375,8 @@ def evaluate_predictions(
     y_pred: np.ndarray,
     y_proba: np.ndarray,
     compute_cis: bool = False,
-    n_bootstraps: int = 1000
+    n_bootstraps: int = 1000,
+    threshold: float = 0.5
 ) -> Dict[str, Any]:
     """
     Computes rigorous cybersecurity evaluation metrics:
@@ -357,7 +386,7 @@ def evaluate_predictions(
     - False-Strong Rate (FSR): FN / (TP + FN)
     - False-Weak Rate (FWR): FP / (TN + FP)
     - Class support and predicted-positive rate
-    - Optional bootstrap 95% confidence intervals
+    - Optional bootstrap 95% confidence intervals with fixed validation-selected threshold
     - Reliability & calibration curve diagnostics
     """
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
@@ -395,6 +424,7 @@ def evaluate_predictions(
     calibration = compute_calibration_curve(y_true, y_proba, n_bins=5)
 
     metrics = {
+        "decision_threshold": round(float(threshold), 3),
         "confusion_matrix": {
             "true_positives": int(tp),
             "false_positives": int(fp),
@@ -424,6 +454,8 @@ def evaluate_predictions(
     }
 
     if compute_cis:
-        metrics["confidence_intervals_95"] = compute_bootstrap_confidence_intervals(y_true, y_proba, n_bootstraps=n_bootstraps)
+        metrics["confidence_intervals_95"] = compute_bootstrap_confidence_intervals(
+            y_true, y_proba, threshold=threshold, n_bootstraps=n_bootstraps
+        )
 
     return metrics

@@ -346,6 +346,154 @@ def generate_charset_controlled_dataset(
     return list(cands), list(lbls), list(ptypes)
 
 
+WORDS_8_EXPANDED = [
+    w for w in [
+        "password", "computer", "sunshine", "baseball", "football", "elephant", "mountain", "november",
+        "hospital", "umbrella", "standard", "security", "building", "calendar", "operator", "customer",
+        "feedback", "chemical", "triangle", "airplane", "keyboard", "tomorrow", "language", "champion",
+        "absolute", "academic", "accuracy", "activity", "addition", "adequate", "advanced", "aircraft",
+        "aluminum", "analysis", "announce", "anything", "approach", "argument", "assembly", "athletic",
+        "attitude", "audience", "backbone", "bacteria", "boundary", "campaign", "capacity", "category",
+        "cellular", "cheerful", "circular", "clothing", "collapse", "combined", "commerce", "complete",
+        "compound", "concrete", "conflict", "constant", "consumer", "contract", "creation", "creative",
+        "critical", "cultural", "currency", "daughter", "daylight", "decision", "decrease", "definite",
+        "delivery", "describe", "designer", "detailed", "diabetes", "dialogue", "diameter", "disabled",
+        "disaster", "discount", "discover", "disorder", "distance", "distinct", "district", "dividend",
+        "division", "doctrine", "document", "domestic", "dominant", "donation", "downtown", "dramatic",
+        "duration", "dynamics", "earnings", "economic", "educator", "election", "electric", "elements",
+        "emission", "emphasis", "employee", "endeavor", "engineer", "enormous", "entirely", "entrance",
+        "envelope", "equality", "equation", "estimate", "evaluate", "everyday", "everyone", "evidence",
+        "exchange", "exciting", "exercise", "explicit", "exposure", "extended", "external", "facility",
+        "familiar", "favorite", "featured", "festival", "finalize", "findings", "flexible", "floating",
+        "forecast", "forehead", "formerly", "fraction", "fragment", "frequent", "friendly", "frontier",
+        "function", "generate", "generous", "genetics", "goodwill", "governor", "graduate",
+        "hardware", "headline", "heritage", "highland", "historic", "homeland", "humanity", "identity",
+        "incident", "increase", "indicate", "industry", "infinite", "informal", "inherent", "initiate",
+        "innocent", "instance", "integral", "internal", "interval", "invasion", "investor", "isolated",
+        "judgment", "judicial", "junction", "landmark", "laughter", "learning", "leverage", "lifetime",
+        "lighting", "listener", "location", "logistic", "magazine", "magnetic", "maintain", "majority",
+        "marriage", "material", "maturity", "maximize", "mechanic", "memorial", "merchant", "midnight",
+        "military", "minimize", "minister", "ministry", "minority", "mobility", "moderate", "momentum",
+        "monument", "mortgage", "movement", "multiple", "multiply", "musician", "mutation", "national",
+        "navigate", "necklace", "negative", "neighbor", "nineteen", "nobility", "nominate", "northern",
+        "notebook", "novelist", "nuisance", "numerous", "nutrient", "obstacle", "occasion", "occupied",
+        "official", "olympics", "opponent", "opposite", "optimism", "optional", "ordinary", "organism",
+        "organize", "original", "outbreak", "outdoors", "outgoing", "outreach", "overhead", "overlook",
+        "overview", "packaged", "painting", "parallel", "particle", "partner", "passcode", "passport",
+        "patience", "pavement", "peaceful", "periodic", "personal", "pharmacy", "physical",
+        "pipeline", "platform", "pleasant", "pleasure", "plumbing", "portable", "portrait", "position",
+        "positive", "possible", "postpone", "powerful", "practice",
+        "precious", "presence", "preserve", "prestige", "previous", "priority", "producer",
+        "profound", "progress", "prohibit", "property", "proposal", "protocol", "province",
+        "purchase", "quantity", "question", "rational", "reaction", "reactive", "regional", "register"
+    ]
+    if len(w) == 8 and w.islower() and w.isalpha()
+]
+
+
+def generate_length_and_composition_controlled_dataset(
+    n_samples: int = 4000,
+    seed: int = 42
+) -> Tuple[List[str], List[int], List[str]]:
+    """
+    Experiment 4: Controls for BOTH Candidate Length AND Character-Class Composition.
+    
+    Specification:
+    - Length: Exactly 14 characters for both positive and negative classes (delta = 0.00 chars).
+    - Lowercase count: Exactly 8 lowercase characters for both classes.
+    - Uppercase count: Exactly 2 uppercase characters for both classes.
+    - Digit count: Exactly 2 digit characters for both classes.
+    - Symbol count: Exactly 2 symbol characters from '!@#$%^&*' for both classes.
+    
+    Positive Class Generation:
+    Constructed using predictable human grammatical templates that meet the exact signature:
+    - 8-char lowercase dictionary morpheme (from WORDS_8_EXPANDED)
+    - 2 uppercase characters
+    - 2 digits
+    - 2 symbols
+    Arranged in predictable human affix orders:
+      1. word + upper + digits + symbols (e.g. 'baseballNY99!#')
+      2. upper + word + digits + symbols (e.g. 'NYbaseball99!#')
+      3. symbols + word + upper + digits (e.g. '!#baseballNY99')
+      4. word + symbols + upper + digits (e.g. 'baseball!#NY99')
+      
+    Negative Class Generation:
+    Constructed using high-entropy uniform random sampling:
+    - 8 independent lowercase letters uniformly chosen from ascii_lowercase
+    - 2 independent uppercase letters uniformly chosen from ascii_uppercase
+    - 2 independent digits uniformly chosen from digits
+    - 2 independent symbols uniformly chosen from '!@#$%^&*'
+    All 14 characters are uniformly permuted across the 14 positions.
+    
+    This guarantees that neither string length nor character-class composition frequencies
+    provide any discriminatory signal. Any classification performance above random chance (50%)
+    must derive strictly from character n-gram sequence order.
+    """
+    rng = random.Random(seed)
+    n_pos = n_samples // 2
+    n_neg = n_samples - n_pos
+
+    symbols = "!@#$%^&*"
+    seen_exact: Set[str] = set()
+    seen_normalized: Set[str] = set()
+    candidates: List[str] = []
+    labels: List[int] = []
+    pattern_types: List[str] = []
+
+    # 1. Generate Positive Candidates
+    while len([l for l in labels if l == 1]) < n_pos:
+        w = rng.choice(WORDS_8_EXPANDED)
+        u1, u2 = rng.choice(string.ascii_uppercase), rng.choice(string.ascii_uppercase)
+        d1, d2 = rng.choice(string.digits), rng.choice(string.digits)
+        s1, s2 = rng.choice(symbols), rng.choice(symbols)
+
+        upper_pair = f"{u1}{u2}"
+        digit_pair = f"{d1}{d2}"
+        symbol_pair = f"{s1}{s2}"
+
+        variant = rng.randint(0, 3)
+        if variant == 0:
+            cand = f"{w}{upper_pair}{digit_pair}{symbol_pair}"
+        elif variant == 1:
+            cand = f"{upper_pair}{w}{digit_pair}{symbol_pair}"
+        elif variant == 2:
+            cand = f"{symbol_pair}{w}{upper_pair}{digit_pair}"
+        else:
+            cand = f"{w}{symbol_pair}{upper_pair}{digit_pair}"
+
+        cand_norm = cand.strip().lower()
+        if cand not in seen_exact and cand_norm not in seen_normalized:
+            seen_exact.add(cand)
+            seen_normalized.add(cand_norm)
+            candidates.append(cand)
+            labels.append(1)
+            pattern_types.append("length_composition_matched_positive")
+
+    # 2. Generate Negative Candidates
+    while len([l for l in labels if l == 0]) < n_neg:
+        lowers = [rng.choice(string.ascii_lowercase) for _ in range(8)]
+        uppers = [rng.choice(string.ascii_uppercase) for _ in range(2)]
+        digits = [rng.choice(string.digits) for _ in range(2)]
+        syms = [rng.choice(symbols) for _ in range(2)]
+
+        pool = lowers + uppers + digits + syms
+        rng.shuffle(pool)
+        cand = "".join(pool)
+
+        cand_norm = cand.strip().lower()
+        if cand not in seen_exact and cand_norm not in seen_normalized:
+            seen_exact.add(cand)
+            seen_normalized.add(cand_norm)
+            candidates.append(cand)
+            labels.append(0)
+            pattern_types.append("length_composition_matched_negative")
+
+    combined = list(zip(candidates, labels, pattern_types))
+    rng.shuffle(combined)
+    cands, lbls, ptypes = zip(*combined)
+    return list(cands), list(lbls), list(ptypes)
+
+
 def generate_independent_holdout_dataset(
     n_samples: int = 1000,
     seed: int = 9999

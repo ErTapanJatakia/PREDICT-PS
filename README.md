@@ -1,6 +1,6 @@
 # PREDICT-PS: Password Predictability Research Workbench
 
-> **Phase 4.1: Research Integrity & Baseline Validation**  
+> **Phase 4.2: Statistical Correction, Artifact Synchronization & Research Integrity Gate**  
 > *Notice: Research Prototype — Not a security certification. Academic study in progress.*
 
 ---
@@ -14,11 +14,12 @@ This is an **empirical hypothesis to test**, not an established result or claim 
 
 Phase 4 implemented the character-level TF-IDF n-gram (2–5) + Logistic Regression statistical machine-learning baseline.
 
-**Phase 4.1 (Research Integrity & Baseline Validation)** strengthens the scientific validity, reproducibility, and methodological integrity of Phase 4 through:
-1. **Shortcut-Learning Diagnostics**: Investigating length bias and character composition artifacts in synthetic data.
-2. **Controlled Empirical Ablation (6 Experiments)**: Testing models on length-controlled, charset-controlled, and out-of-distribution (OOD) novel grammar holdout datasets.
-3. **Partition Isolation & Duplicate Auditing**: Formally proving 0 exact and 0 case-normalized duplicate leakage between train, validation, and test partitions.
-4. **Statistical Rigor**: 95% bootstrap confidence intervals (1,000 resamples), Brier calibration scores, and 10-bin Expected Calibration Error (ECE) reliability diagrams.
+**Phase 4.2 (Statistical Correction, Artifact Synchronization & Research Integrity Gate)** strengthens the scientific validity, reproducibility, and methodological integrity through:
+1. **Bootstrap Threshold Defect Correction**: Propagating the exact validation-selected decision threshold $\tau$ into `compute_bootstrap_confidence_intervals`. Every bootstrap resample is evaluated at this fixed threshold (never defaulting to 0.5 or re-optimizing on test splits), ensuring point estimates and confidence intervals evaluate the same classifier operating point.
+2. **Resample Accounting**: Full tracking of `requested_resamples` (1,000), `valid_resamples`, `skipped_single_class_resamples`, and `valid_resamples_by_metric` for both ranking and classification metrics.
+3. **Dual-Control Dataset & Neutralization (Exps 7 & 8)**: Jointly controlling BOTH candidate length (exact 14 characters) and character composition (8 lower, 2 upper, 2 digits, 2 symbols) across both positive and negative classes. Exp 8 demonstrates that a composition-only diagnostic model collapses to near-random guessing (55.50% Acc, 0.5725 ROC-AUC), proving composition shortcut neutralization.
+4. **Independent Holdout Evaluation (Exp 4)**: Evaluating the frozen Exp 1 model and threshold $\tau_{orig}$ on unseen pattern templates (ISO dates, PIN-padded names, reverse encasing, zigzag walks) without retraining.
+5. **Artifact Synchronization & Verification**: Canonical synchronization between `src/data/` and `python/` artifacts with 28 automated Python regression tests and 26 TypeScript tests.
 
 ---
 
@@ -31,12 +32,13 @@ Phase 4 implemented the character-level TF-IDF n-gram (2–5) + Logistic Regress
 | **Phase 3** | **Standard Baselines (zxcvbn-ts & NIST SP 800-63B-4 Guidance)** | **Completed** |
 | **Phase 4** | **Character n-gram Statistical ML Baseline (scikit-learn Pipeline)** | **Completed** |
 | **Phase 4.1**| **Research Integrity & Baseline Validation (Ablation Matrix & Audits)**| **Completed** |
+| **Phase 4.2**| **Statistical Correction, Artifact Synchronization & Integrity Gate** | **Completed** |
 | Phase 5 | Explainable Feature-Fusion Architecture | Planned (Not Implemented) |
 | Phase 6 | Reproducible Evaluation Workbench & Ablation Matrix | Planned (Not Implemented) |
 
 ---
 
-## 3. Phase 4.1 Controlled Empirical Ablation Matrix (6 Experiments)
+## 3. Controlled Empirical Ablation Matrix (8 Experiments)
 
 | Experiment | Purpose & Dataset Condition | Evaluation Split | FSR | Macro-F1 | PR-AUC | ROC-AUC | Balanced Acc | Brier | 95% CI (F1) |
 |---|---|---|---|---|---|---|---|---|---|
@@ -46,11 +48,13 @@ Phase 4 implemented the character-level TF-IDF n-gram (2–5) + Logistic Regress
 | **Exp 4: Independent Holdout** | **OOD Transfer**: Exp 1 model evaluated against novel pattern grammars (seed 9999) | OOD Holdout Test | **71.20%** | **0.5891** | **0.8428** | **0.8108** | **64.00%** | **0.2663** | [0.408, 0.467] |
 | **Exp 5: Length-Only Diagnostic**| LogisticRegression predicting solely from candidate string length | Shortcut Diagnostic | 2.00% | 0.9399 | 0.9854 | 0.9896 | 94.00% | 0.0390 | [0.921, 0.958] |
 | **Exp 6: Composition Diagnostic**| LogisticRegression predicting from 6 character-class counts | Shortcut Diagnostic | 0.00% | 0.9950 | 1.0000 | 1.0000 | 99.50% | 0.0022 | [0.995, 1.000] |
+| **Exp 7: Dual-Controlled Model** | TF-IDF n-grams on matched length (14) AND composition (8L/2U/2D/2S) | Dual-Controlled Test | 0.00% | 1.0000 | 1.0000 | 1.0000 | 100.00% | 0.0041 | [1.000, 1.000] |
+| **Exp 8: Composition on Matched**| Composition diagnostic evaluated on Exp 7 matched dataset | Neutralization Test | 42.00%| **0.5539** | 0.5401 | **0.5725** | **55.50%** | 0.2483 | [0.505, 0.598] |
 
 ### Key Scientific Findings:
-1. **Shortcut Learning Exists (Exps 5 & 6)**: In the unconstrained synthetic dataset, positive samples have a mean length of 9.33 characters while negative samples have a mean length of 15.93 characters ($\Delta = 6.6$ chars). A model using *only length* achieves 94.00% accuracy, and one using *only character counts* achieves 99.50% accuracy.
-2. **Subword Learning is Real (Exp 2)**: When candidate length is strictly matched between classes ($\Delta = 0.0$ chars in [12, 16]), the character n-gram model still achieves 99.83% Macro-F1 (100% accuracy), proving that it genuinely learns subwords and character sequences beyond pure length.
-3. **Out-of-Distribution Transfer Fails (Exp 4)**: When evaluated without retraining against unseen structural grammars (ISO dates, PIN-padded names, reverse encased phrases, zigzag walks), the character n-gram model's **False-Strong Rate surges to 71.20%** and **Recall collapses to 28.80%**. This directly supports the central hypothesis (RQ2) that purely statistical n-grams overfit to specific dictionary subwords and fail on novel structures, motivating the proposed explainable pattern fusion in Phase 5.
+1. **Shortcut Learning Exists in Unconstrained Data (Exps 5 & 6)**: In the unconstrained synthetic dataset, positive samples have a mean length of 9.33 characters while negative samples have a mean length of 15.93 characters ($\Delta = 6.6$ chars). A model using *only length* achieves 94.00% accuracy, and one using *only character counts* achieves 99.50% accuracy.
+2. **Subword Learning Persists Under Full Neutralization (Exp 7 vs Exp 8)**: When both length and character composition are held identical between classes (14 chars: 8 lower, 2 upper, 2 digits, 2 symbols), the composition model collapses to random chance (55.50% Acc, 0.5725 ROC-AUC, Exp 8), proving complete neutralization of the composition shortcut. Meanwhile, the character n-gram model still achieves 100.00% accuracy (Exp 7) by learning natural language subwords and character transitions (`baseball`, `security`, `matrix`).
+3. **Out-of-Distribution Transfer Fails Severely (Exp 4)**: When evaluated without retraining against unseen structural grammars (ISO dates, PIN-padded names, reverse encased phrases, zigzag walks), the character n-gram model's **False-Strong Rate surges to 71.20%** and **Recall collapses to 28.80%**. This directly supports the central hypothesis (RQ2) that purely statistical n-grams overfit to specific dictionary subwords and fail on novel structures, motivating the proposed explainable pattern fusion in Phase 5.
 
 ---
 
@@ -103,16 +107,16 @@ npm run dev
 ```
 The server runs on `http://localhost:3000`.
 
-### Running Python Unit Test Suite (23 Tests)
+### Running Python Unit Test Suite (28 Tests)
 ```bash
 python3 -m unittest discover -s python/tests -v
 ```
 
-### Running All 6 Experiments & Generating Manifest
+### Running All 8 Experiments & Generating Manifest
 ```bash
 python3 python/run_experiments.py
 ```
-Outputs: `src/data/phase4_1_experiments_manifest.json` and `src/data/phase4_baseline_metrics.json`.
+Outputs: `src/data/phase4_1_experiments_manifest.json` and `python/phase4_1_experiments_manifest.json`.
 
 ### Running TypeScript Pure Logic Test Suite (26 Tests)
 ```bash

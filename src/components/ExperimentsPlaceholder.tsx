@@ -197,25 +197,25 @@ export const ExperimentsPlaceholder: React.FC = () => {
       ) : (
         <>
           {/* ========================================================================= */}
-          {/* SECTION: Phase 4.1 — Research Integrity & Baseline Validation */}
+          {/* SECTION: Phase 4.2 — Statistical Correction, Integrity & Baseline Validation */}
           {/* ========================================================================= */}
           <section className="bg-slate-900 border border-indigo-900/40 rounded-xl p-6 space-y-6 relative overflow-hidden">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
-                    PHASE 4.1 VALIDATION SUITE
+                    PHASE 4.2 VALIDATION ACTIVE
                   </span>
                   <span className="px-2 py-0.5 rounded text-[11px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40">
-                    Status: Executed successfully
+                    Status: Canonical Run Verified (N=4,000, Holdout=1,000, Resamples=1,000)
                   </span>
                 </div>
                 <h2 className="text-base font-bold text-white mt-1 flex items-center gap-2">
                   <Scale className="w-5 h-5 text-indigo-400" />
-                  <span>Phase 4.1 — Research Integrity &amp; Baseline Validation</span>
+                  <span>Phase 4.2 — Statistical Correction, Artifact Synchronization &amp; Integrity Gate</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Controlled empirical ablation: Investigating synthetic-data shortcuts, length bias, and out-of-distribution transfer
+                  Controlled empirical ablation: Investigating synthetic-data shortcuts, dual length &amp; composition matching, and out-of-distribution transfer
                 </p>
               </div>
 
@@ -232,37 +232,47 @@ export const ExperimentsPlaceholder: React.FC = () => {
                 <span className="text-slate-700">•</span>
                 <div>
                   <span className="text-slate-500">Tests:</span>{' '}
-                  <span className="text-sky-400 font-semibold">23/23 Py OK • 26/26 TS OK</span>
+                  <span className="text-sky-400 font-semibold">28/28 Py OK • 26/26 TS OK</span>
                 </div>
               </div>
             </div>
 
-            {/* Diagnostic Findings Alert Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Diagnostic Findings Alert Cards (4 Key Empirical Discoveries) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="p-3.5 bg-amber-950/20 border border-amber-800/40 rounded-lg space-y-1">
                 <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                  <AlertTriangle className="w-4 h-4 text-amber-400" />
-                  <span>1. Length Shortcut Confirmed</span>
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>1. Length Shortcut</span>
                 </div>
                 <p className="text-[11px] text-slate-300 leading-relaxed">
-                  On the unconstrained dataset, string length alone (Exp 5) achieves <strong className="text-white">94.00% accuracy</strong> and <strong className="text-white">0.9896 ROC-AUC</strong> due to a <code className="text-amber-200">6.6 char</code> delta between positive (9.3 chars) and negative (15.9 chars) classes.
+                  On unconstrained data, candidate length alone (Exp 5) yields <strong className="text-white">94.00% accuracy</strong> and <strong className="text-white">0.9896 ROC-AUC</strong> due to a <code className="text-amber-200">6.6 char</code> delta between positive (9.3) and negative (15.9) samples.
                 </p>
               </div>
 
-              <div className="p-3.5 bg-sky-950/20 border border-sky-800/40 rounded-lg space-y-1">
-                <div className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-sky-400" />
-                  <span>2. Subword Learning Holds</span>
+              <div className="p-3.5 bg-amber-950/20 border border-amber-800/40 rounded-lg space-y-1">
+                <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>2. Composition Shortcut</span>
                 </div>
                 <p className="text-[11px] text-slate-300 leading-relaxed">
-                  When length is strictly matched to [12, 16] chars (Exp 2, <code className="text-sky-200">delta = 0.0</code>), the character n-gram model still achieves <strong className="text-white">100% accuracy</strong>, proving it does learn statistical pattern regularities beyond length.
+                  Coarse character-class counts alone (Exp 6) achieve <strong className="text-white">99.50% accuracy</strong>, demonstrating that unconstrained synthetic templates are trivially separable by character set frequencies.
+                </p>
+              </div>
+
+              <div className="p-3.5 bg-emerald-950/20 border border-emerald-800/40 rounded-lg space-y-1">
+                <div className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>3. Dual-Control Subwords</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  When length (14) AND character counts (8 lower, 2 upper, 2 digits, 2 symbols) are strictly matched (Exp 7 &amp; 8), composition diagnostic collapses to <strong className="text-slate-300">50%</strong> while n-grams retain <strong className="text-emerald-300">100%</strong> on in-distribution subwords.
                 </p>
               </div>
 
               <div className="p-3.5 bg-red-950/20 border border-red-800/40 rounded-lg space-y-1">
                 <div className="text-xs font-bold text-red-300 flex items-center gap-1.5">
-                  <TrendingDown className="w-4 h-4 text-red-400" />
-                  <span>3. OOD Transfer Degradation</span>
+                  <TrendingDown className="w-4 h-4 text-red-400 shrink-0" />
+                  <span>4. OOD Transfer Collapse</span>
                 </div>
                 <p className="text-[11px] text-slate-300 leading-relaxed">
                   When evaluated against novel pattern grammars (Exp 4 holdout: ISO dates, PINs, zigzag walks), False-Strong Rate surges to <strong className="text-red-300">71.20%</strong> and Recall drops to <strong className="text-white">28.80%</strong>. Validates hypothesis RQ2 for structural feature fusion.
@@ -270,11 +280,11 @@ export const ExperimentsPlaceholder: React.FC = () => {
               </div>
             </div>
 
-            {/* 6-Experiment Comparative Table */}
+            {/* 8-Experiment Comparative Table */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold font-mono text-slate-300 uppercase tracking-wider">
-                  Controlled Empirical Ablation Matrix (6 Experiments)
+                  Controlled Empirical Ablation Matrix ({experimentsList.length} Experiments)
                 </h3>
                 <span className="text-[11px] font-mono text-slate-400">
                   Select an experiment row to inspect detailed diagnostics below
@@ -373,7 +383,7 @@ export const ExperimentsPlaceholder: React.FC = () => {
                   <p className="text-xs text-slate-400 mt-0.5">{activeSelectedExp.description}</p>
                 </div>
                 <div className="text-xs font-mono text-slate-400">
-                  Threshold: <span className="text-emerald-400 font-bold">τ = {activeSelectedExp.threshold}</span> (Val Selected)
+                  Fixed Threshold: <span className="text-emerald-400 font-bold">τ = {activeSelectedExp.threshold}</span> (Val Selected &amp; Fixed for Bootstrap)
                 </div>
               </div>
 
@@ -421,15 +431,17 @@ export const ExperimentsPlaceholder: React.FC = () => {
                 </div>
               </div>
 
-              {/* 95% Confidence Intervals Breakdown */}
+              {/* 95% Confidence Intervals Breakdown with Complete Resample Accounting */}
               {activeSelectedExp.metrics.confidence_intervals_95 && (
                 <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-lg space-y-2">
-                  <div className="text-xs font-semibold text-slate-200 flex items-center justify-between">
+                  <div className="text-xs font-semibold text-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                     <span className="flex items-center gap-1.5">
                       <BarChart3 className="w-4 h-4 text-sky-400" />
-                      <span>Empirical Bootstrap 95% Confidence Intervals (1,000 Resamples, Seed 42)</span>
+                      <span>Empirical Bootstrap 95% Confidence Intervals (Percentile Method)</span>
                     </span>
-                    <span className="text-[10px] font-mono text-slate-400">Percentile Method</span>
+                    <span className="text-[10px] font-mono text-emerald-300">
+                      Evaluated at fixed τ = {activeSelectedExp.metrics.confidence_intervals_95.methodology.threshold_used ?? activeSelectedExp.threshold} • {activeSelectedExp.metrics.confidence_intervals_95.methodology.valid_resamples ?? 1000}/1000 Valid Resamples
+                    </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
                     <div className="bg-slate-950 p-2 rounded border border-slate-800">
@@ -462,7 +474,7 @@ export const ExperimentsPlaceholder: React.FC = () => {
                     </div>
                   </div>
                   <p className="text-[10px] text-slate-500 italic">
-                    Methodological Note: Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent variance across human password populations.
+                    Methodological Note: Confidence intervals quantify statistical sampling variance on synthetic test partitions using the exact validation-selected threshold; they do not represent variance across human password populations.
                   </p>
                 </div>
               )}
