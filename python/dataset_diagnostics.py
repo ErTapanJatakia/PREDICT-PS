@@ -11,7 +11,8 @@ import math
 import statistics
 import string
 from collections import Counter
-from typing import List, Dict, Any, Set, Tuple
+from typing import List, Dict, Any, Set, Tuple, Optional
+import numpy as np
 
 
 def compute_composition_counts(cand: str) -> Dict[str, int]:
@@ -236,3 +237,201 @@ def audit_split_isolation(
             "Direct metadata / label leakage: Verified that pattern_types are never used as model inputs"
         ]
     }
+
+
+def audit_generator_artefacts(
+    pos_candidates: List[str],
+    neg_candidates: List[str],
+    positive_stems: Optional[List[str]] = None,
+    length: int = 14
+) -> Dict[str, Any]:
+    """
+    Phase 4.2.3: Independent Generator V2 Artefact Audit.
+    Investigates structural sequence artefacts between positive and negative candidate generators:
+    1. Positional Character-Class Distributions:
+       P(class | position) across 14 positions for lower, upper, digit, symbol.
+    2. Character-Class Transition Probabilities:
+       4x4 transition matrix P(class_{t+1} | class_t).
+    3. Transition Divergence:
+       Jensen-Shannon Divergence and Cosine Similarity between positive and negative transition matrices.
+    4. Stem Overlap Audit:
+       Verifies zero positive phonetic stems appear in negative candidate strings.
+    """
+    symbols = set("!@#$%^&*()_+-=[]{}|;:,.<>?/`~'\"\\")
+
+    def get_char_class(ch: str) -> int:
+        if ch.islower():
+            return 0  # lower
+        elif ch.isupper():
+            return 1  # upper
+        elif ch.isdigit():
+            return 2  # digit
+        elif ch in symbols:
+            return 3  # symbol
+        return 0
+
+    class_names = ["lowercase", "uppercase", "digits", "symbols"]
+
+    def compute_positional_distribution(cands: List[str]) -> List[Dict[str, float]]:
+        dist = []
+        n = max(1, len(cands))
+        for pos in range(length):
+            counts = [0, 0, 0, 0]
+            for c in cands:
+                if pos < len(c):
+                    cls = get_char_class(c[pos])
+                    counts[cls] += 1
+            dist.append({
+                "position": pos,
+                "p_lower": round(counts[0] / n, 4),
+                "p_upper": round(counts[1] / n, 4),
+                "p_digits": round(counts[2] / n, 4),
+                "p_symbols": round(counts[3] / n, 4)
+            })
+        return dist
+
+    def compute_transition_matrix(cands: List[str]) -> Tuple[List[List[float]], List[float]]:
+        # 4x4 transition matrix
+        t_mat = [[0 for _ in range(4)] for _ in range(4)]
+        total_transitions = 0
+        for c in cands:
+            for i in range(len(c) - 1):
+                c1 = get_char_class(c[i])
+                c2 = get_char_class(c[i + 1])
+                t_mat[c1][c2] += 1
+                total_transitions += 1
+
+        denom = max(1, total_transitions)
+        norm_mat = [[round(t_mat[r][c] / denom, 5) for c in range(4)] for r in range(4)]
+        flat_dist = [t_mat[r][c] / denom for r in range(4) for c in range(4)]
+        return norm_mat, flat_dist
+
+    pos_dist = compute_positional_distribution(pos_candidates)
+    neg_dist = compute_positional_distribution(neg_candidates)
+
+    pos_tmat, pos_flat = compute_transition_matrix(pos_candidates)
+    neg_tmat, neg_flat = compute_transition_matrix(neg_candidates)
+
+    # Compute Jensen-Shannon Divergence between flattened transition vectors
+    eps = 1e-12
+    p = np.array(pos_flat, dtype=float) + eps
+    p = p / np.sum(p)
+    q = np.array(neg_flat, dtype=float) + eps
+    q = q / np.sum(q)
+    m = 0.5 * (p + q)
+
+    kl_pm = float(np.sum(p * np.log2(p / m)))
+    kl_qm = float(np.sum(q * np.log2(q / m)))
+    js_divergence = float(0.5 * kl_pm + 0.5 * kl_qm)
+
+    # Cosine similarity
+    norm_p = float(np.linalg.norm(p))
+    norm_q = float(np.linalg.norm(q))
+    cosine_sim = float(np.dot(p, q) / (norm_p * norm_q)) if (norm_p * norm_q) > 0 else 0.0
+
+    # Stem overlap verification
+    stem_overlap_count = 0
+    if positive_stems:
+        stem_set = [s.lower() for s in positive_stems]
+        for c in neg_candidates:
+            c_low = c.lower()
+            if any(s in c_low for s in stem_set):
+                stem_overlap_count += 1
+    stem_overlap_rate = round(stem_overlap_count / max(1, len(neg_candidates)), 4)
+
+    return {
+        "candidate_counts": {
+            "positive_count": len(pos_candidates),
+            "negative_count": len(neg_candidates)
+        },
+        "stem_overlap_audit": {
+            "stems_checked": len(positive_stems) if positive_stems else 0,
+            "negative_candidates_with_stems": stem_overlap_count,
+            "overlap_rate": stem_overlap_rate,
+            "isolated": stem_overlap_count == 0
+        },
+        "transition_divergence": {
+            "jensen_shannon_divergence": round(js_divergence, 4),
+            "cosine_similarity": round(cosine_sim, 4),
+            "interpretation": (
+                "Quantifies the structural gap in character-class sequencing. Lower JS divergence indicates "
+                "more natural transition parity between positive and negative candidates."
+            )
+        },
+        "positive_transition_matrix_4x4": pos_tmat,
+        "negative_transition_matrix_4x4": neg_tmat,
+        "positional_distributions": {
+            "positive": pos_dist,
+            "negative": neg_dist
+        }
+    }
+
+
+def audit_combined_isolation(splits: Dict[str, Dict[str, list]]) -> Dict[str, Any]:
+    """
+    Phase 4.2.3: Audits combined lexical and template isolation across train, val, and test partitions.
+    """
+    train_meta = splits["train"]["metadata"]
+    val_meta = splits["val"]["metadata"]
+    test_meta = splits["test"]["metadata"]
+
+    train_lbls = splits["train"]["labels"]
+    val_lbls = splits["val"]["labels"]
+    test_lbls = splits["test"]["labels"]
+
+    train_words = set(m["lexical_source"] for m, y in zip(train_meta, train_lbls) if y == 1 and m["lexical_source"] != "none_uniform_scramble")
+    val_words = set(m["lexical_source"] for m, y in zip(val_meta, val_lbls) if y == 1 and m["lexical_source"] != "none_uniform_scramble")
+    test_words = set(m["lexical_source"] for m, y in zip(test_meta, test_lbls) if y == 1 and m["lexical_source"] != "none_uniform_scramble")
+
+    train_tmpls = set(m["template_family"] for m, y in zip(train_meta, train_lbls) if y == 1)
+    val_tmpls = set(m["template_family"] for m, y in zip(val_meta, val_lbls) if y == 1)
+    test_tmpls = set(m["template_family"] for m, y in zip(test_meta, test_lbls) if y == 1)
+
+    lexical_disjoint = (
+        len(train_words & val_words) == 0 and
+        len(train_words & test_words) == 0 and
+        len(val_words & test_words) == 0
+    )
+
+    template_disjoint = (
+        len(train_tmpls & test_tmpls) == 0 and
+        len(train_tmpls & val_tmpls) == 0 and
+        len(val_tmpls & test_tmpls) == 0
+    )
+
+    train_cands = set(splits["train"]["candidates"])
+    val_cands = set(splits["val"]["candidates"])
+    test_cands = set(splits["test"]["candidates"])
+
+    exact_dup_free = (
+        len(train_cands & val_cands) == 0 and
+        len(train_cands & test_cands) == 0 and
+        len(val_cands & test_cands) == 0
+    )
+
+    train_norm = set(c.strip().lower() for c in train_cands)
+    val_norm = set(c.strip().lower() for c in val_cands)
+    test_norm = set(c.strip().lower() for c in test_cands)
+
+    norm_dup_free = (
+        len(train_norm & val_norm) == 0 and
+        len(train_norm & test_norm) == 0 and
+        len(val_norm & test_norm) == 0
+    )
+
+    return {
+        "combined_isolation_verified": lexical_disjoint and template_disjoint and exact_dup_free and norm_dup_free,
+        "lexical_disjoint": lexical_disjoint,
+        "template_disjoint": template_disjoint,
+        "exact_duplicates_zero": exact_dup_free,
+        "normalized_duplicates_zero": norm_dup_free,
+        "counts": {
+            "train_words": len(train_words),
+            "val_words": len(val_words),
+            "test_words": len(test_words),
+            "train_templates": sorted(list(train_tmpls)),
+            "val_templates": sorted(list(val_tmpls)),
+            "test_templates": sorted(list(test_tmpls))
+        }
+    }
+

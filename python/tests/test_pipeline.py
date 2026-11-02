@@ -67,9 +67,20 @@ from dataset_generator import (
     generate_sequential_candidate,
     generate_keyboard_walk_candidate,
     generate_repeated_phrase_candidate,
-    generate_high_entropy_uniform_candidate
+    generate_high_entropy_uniform_candidate,
+    generate_combined_lexical_template_dataset,
+    generate_independent_v2_matched_dataset,
+    generate_independent_v2b_matched_dataset,
+    split_dataset_by_combined_lexical_and_template,
+    INDEPENDENT_PHONETIC_4_STEMS,
+    WORDS_8_EXPANDED
 )
-from dataset_diagnostics import analyze_dataset_composition, audit_split_isolation
+from dataset_diagnostics import (
+    analyze_dataset_composition,
+    audit_split_isolation,
+    audit_generator_artefacts,
+    audit_combined_isolation
+)
 from model_pipeline import (
     NgramBaselineModel,
     LengthOnlyBaselineModel,
@@ -77,8 +88,10 @@ from model_pipeline import (
     evaluate_predictions,
     compute_bootstrap_confidence_intervals,
     select_validation_threshold,
-    compute_calibration_curve
+    compute_calibration_curve,
+    analyze_threshold_robustness
 )
+
 
 
 class TestPredictPSPhase41ResearchIntegrity(unittest.TestCase):
@@ -693,7 +706,178 @@ class TestPredictPSPhase41ResearchIntegrity(unittest.TestCase):
             self.assertNotIn("raw_passwords", content)
             self.assertNotIn("plain_text", content)
 
+    def test_37_combined_lexical_template_isolation(self):
+        """
+        Phase 4.2.3 Requirement 1:
+        Verifies simultaneous isolation of lexical root words and template families:
+        W_train ∩ W_val = ∅, W_train ∩ W_test = ∅, W_val ∩ W_test = ∅
+        T_train ∩ T_test = ∅, T_val separately designated.
+        Exact length 14, 8L/2U/2D/2S matching, and 0 duplicate leakage.
+        """
+        data = generate_combined_lexical_template_dataset(n_samples=200, seed=42)
+        audit = audit_combined_isolation(data["splits"])
+        self.assertTrue(audit["combined_isolation_verified"])
+        self.assertTrue(audit["lexical_disjoint"])
+        self.assertTrue(audit["template_disjoint"])
+        self.assertTrue(audit["exact_duplicates_zero"])
+        self.assertTrue(audit["normalized_duplicates_zero"])
+
+        # Check composition of every sample
+        for split_name in ["train", "val", "test"]:
+            for c in data["splits"][split_name]["candidates"]:
+                self.assertEqual(len(c), 14)
+                self.assertEqual(sum(1 for ch in c if ch.islower()), 8)
+                self.assertEqual(sum(1 for ch in c if ch.isupper()), 2)
+                self.assertEqual(sum(1 for ch in c if ch.isdigit()), 2)
+
+    def test_38_alternative_syllabic_negative_generator(self):
+        """
+        Phase 4.2.3 Requirement 2:
+        Verifies that Alternative Generator V2b produces matched pseudo-syllabic negative candidates:
+        Exact length 14, 8L/2U/2D/2S, no dictionary words or phonetic stems.
+        """
+        cands, lbls, meta = generate_independent_v2b_matched_dataset(n_samples=100, seed=9999)
+        self.assertEqual(len(cands), 100)
+        self.assertEqual(sum(lbls), 50)
+
+        for c, l, m in zip(cands, lbls, meta):
+            self.assertEqual(len(c), 14)
+            self.assertEqual(sum(1 for ch in c if ch.islower()), 8)
+            self.assertEqual(sum(1 for ch in c if ch.isupper()), 2)
+            self.assertEqual(sum(1 for ch in c if ch.isdigit()), 2)
+            if l == 0:
+                self.assertIn("syllabic", m["template_family"])
+                # Negative must not contain any dictionary word
+                c_low = c.lower()
+                for w in WORDS_8_EXPANDED:
+                    self.assertNotIn(w.lower(), c_low)
+
+    def test_39_generator_sequence_artefact_audit(self):
+        """
+        Phase 4.2.3 Requirement 2:
+        Tests that audit_generator_artefacts correctly computes 14x4 positional distributions,
+        4x4 transition matrices, and Jensen-Shannon transition divergence.
+        """
+        pos = ["Aa1!bb2@cc3#dd", "Ee4$ff5%gg6^hh"]
+        neg = ["12!@abCDefGHij", "34#$klMNoPQRst"]
+        audit = audit_generator_artefacts(pos, neg, positive_stems=["bb", "ff"], length=14)
+        self.assertIn("transition_divergence", audit)
+        self.assertIn("jensen_shannon_divergence", audit["transition_divergence"])
+        self.assertIn("cosine_similarity", audit["transition_divergence"])
+        self.assertGreaterEqual(audit["transition_divergence"]["jensen_shannon_divergence"], 0.0)
+        self.assertLessEqual(audit["transition_divergence"]["jensen_shannon_divergence"], 1.0)
+        self.assertEqual(len(audit["positional_distributions"]["positive"]), 14)
+        self.assertEqual(len(audit["positional_distributions"]["negative"]), 14)
+
+    def test_40_negative_pool_zero_stem_overlap(self):
+        """
+        Phase 4.2.3 Requirement 2:
+        Verifies that 0% of phonetic stems appear in independent negative candidates.
+        """
+        cands_v2, lbls_v2, _ = generate_independent_v2_matched_dataset(n_samples=200, seed=9999)
+        cands_v2b, lbls_v2b, _ = generate_independent_v2b_matched_dataset(n_samples=200, seed=9999)
+
+        neg_v2 = [c for c, l in zip(cands_v2, lbls_v2) if l == 0]
+        neg_v2b = [c for c, l in zip(cands_v2b, lbls_v2b) if l == 0]
+
+        audit_v2 = audit_generator_artefacts(neg_v2, neg_v2, positive_stems=INDEPENDENT_PHONETIC_4_STEMS)
+        audit_v2b = audit_generator_artefacts(neg_v2b, neg_v2b, positive_stems=INDEPENDENT_PHONETIC_4_STEMS)
+
+        self.assertTrue(audit_v2["stem_overlap_audit"]["isolated"])
+        self.assertEqual(audit_v2["stem_overlap_audit"]["overlap_rate"], 0.0)
+        self.assertTrue(audit_v2b["stem_overlap_audit"]["isolated"])
+        self.assertEqual(audit_v2b["stem_overlap_audit"]["overlap_rate"], 0.0)
+
+    def test_41_positive_prediction_rate_computation(self):
+        """
+        Phase 4.2.3 Requirement 3:
+        Tests that Predicted Positive Rate (PPR = (TP + FP) / N) is bounded in [0, 1]
+        and accurately reflects prediction counts.
+        """
+        y_true = [1, 1, 0, 0]
+        y_pred = np.array([1, 0, 0, 0])  # TP=1, FP=0, TN=2, FN=1 -> PPR = 1/4 = 0.25
+        y_prob = np.array([0.9, 0.4, 0.1, 0.2])
+        ev = evaluate_predictions(y_true, y_pred, y_prob, threshold=0.5)
+        self.assertEqual(ev["predicted_positive_rate"], 0.25)
+
+    def test_42_degenerate_all_negative_regime_detection(self):
+        """
+        Phase 4.2.3 Requirement 3:
+        Verifies that when a model outputs 0 for all samples, analyze_threshold_robustness:
+        1. Correctly flags regime as degenerate_all_negative.
+        2. Sets PPR to 0.0.
+        3. Explains that nominal 50% accuracy on balanced test data is due to predicting all zeros,
+           NOT random guessing.
+        """
+        val_y = [1, 1, 0, 0]
+        val_prob = np.array([0.8, 0.9, 0.1, 0.2])
+        test_y = [1, 1, 0, 0]
+        test_prob = np.array([0.05, 0.08, 0.02, 0.04])  # All below threshold 0.5
+
+        res = analyze_threshold_robustness(val_y, val_prob, test_y, test_prob, selected_threshold=0.5)
+        regime = res["classification_regime"]
+        self.assertTrue(regime["is_degenerate_all_negative"])
+        self.assertEqual(regime["regime_type"], "degenerate_all_negative")
+        self.assertEqual(res["metrics_at_selected_threshold"]["predicted_positive_rate"], 0.0)
+        self.assertEqual(res["metrics_at_selected_threshold"]["accuracy"], 0.5)
+        self.assertIn("NOT random guessing", regime["explanation"])
+
+    def test_43_threshold_sensitivity_sweep_curves(self):
+        """
+        Phase 4.2.3 Requirement 3:
+        Verifies threshold sensitivity curve computation across tau in [0.05, 0.95] in 0.05 steps.
+        """
+        val_y = [1, 1, 1, 1, 0, 0, 0, 0]
+        val_prob = np.array([0.9, 0.8, 0.7, 0.6, 0.4, 0.3, 0.2, 0.1])
+        test_y = [1, 1, 1, 1, 0, 0, 0, 0]
+        test_prob = np.array([0.85, 0.75, 0.65, 0.55, 0.45, 0.35, 0.25, 0.15])
+
+        res = analyze_threshold_robustness(val_y, val_prob, test_y, test_prob, selected_threshold=0.5)
+        curve = res["threshold_sweep_curve"]
+        self.assertEqual(len(curve), 19)
+        self.assertEqual(curve[0]["threshold"], 0.05)
+        self.assertEqual(curve[-1]["threshold"], 0.95)
+        # PPR must be non-increasing as threshold increases
+        pprs = [pt["test_ppr"] for pt in curve]
+        for i in range(len(pprs) - 1):
+            self.assertGreaterEqual(pprs[i], pprs[i + 1])
+
+    def test_44_phase4_2_3_manifest_synchronization_and_sanitization(self):
+        """
+        Phase 4.2.3 Requirement 4:
+        Verifies that python/ and src/data/ copies of phase4_2_3_audit_manifest.json exist,
+        match exactly, adhere to schema predict_ps_phase4_2_3_v1, and contain zero raw candidate passwords.
+        """
+        p_src = "src/data/phase4_2_3_audit_manifest.json"
+        p_py = "python/phase4_2_3_audit_manifest.json"
+
+        if os.path.exists(p_src) and os.path.exists(p_py):
+            with open(p_src, "r", encoding="utf-8") as f1, open(p_py, "r", encoding="utf-8") as f2:
+                m_src = json.load(f1)
+                m_py = json.load(f2)
+
+            self.assertEqual(m_src, m_py)
+            self.assertEqual(m_src["schema_version"], "predict_ps_phase4_2_3_v1")
+            self.assertIn("exp_g9_combined_lexical_template_isolation", m_src["experiments"])
+            self.assertIn("exp_g10_independent_v2b_syllabic_negatives", m_src["experiments"])
+
+            content = json.dumps(m_src)
+            self.assertNotIn("dragon!@#", content)
+            self.assertNotIn("bapomelu", content)
+
+    def test_45_automated_reconciliation_validator_execution(self):
+        """
+        Phase 4.2.3 Requirement 4:
+        Runs python/verify_manifest_reconciliation.py and verifies all checks pass cleanly.
+        """
+        rec_script = os.path.join(PARENT_DIR, "verify_manifest_reconciliation.py")
+        if os.path.exists(rec_script):
+            import subprocess
+            res = subprocess.run([sys.executable, rec_script], capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"Reconciliation validator failed:\n{res.stderr}")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

@@ -456,3 +456,160 @@ export interface Phase42GeneralizationManifest {
   methodological_conclusions: string[];
   limitations: string[];
 }
+
+export interface ThresholdSweepPoint {
+  threshold: number;
+  is_selected: boolean;
+  val_accuracy: number;
+  val_macro_f1: number;
+  val_fsr: number;
+  val_ppr: number;
+  test_accuracy: number;
+  test_balanced_accuracy: number;
+  test_macro_f1: number;
+  test_fsr: number;
+  test_fwr: number;
+  test_ppr: number;
+  test_sensitivity: number;
+  test_specificity: number;
+  test_confusion_matrix: {
+    tp: number;
+    fp: number;
+    tn: number;
+    fn: number;
+  };
+}
+
+export interface ThresholdRobustnessReport {
+  selected_validation_threshold: number;
+  metrics_at_selected_threshold: {
+    confusion_matrix: {
+      true_positives: number;
+      false_positives: number;
+      true_negatives: number;
+      false_negatives: number;
+      total: number;
+    };
+    predicted_positive_rate: number;
+    sensitivity: number;
+    specificity: number;
+    precision: number;
+    recall: number;
+    accuracy: number;
+    balanced_accuracy: number;
+    macro_f1: number;
+    mcc: number;
+    roc_auc: number;
+    pr_auc: number;
+    brier_score: number;
+    false_strong_rate: number;
+    false_weak_rate: number;
+  };
+  classification_regime: {
+    regime_type: 'degenerate_all_negative' | 'degenerate_all_positive' | 'balanced_classification' | 'skewed_classification';
+    is_degenerate_all_negative: boolean;
+    is_degenerate_all_positive: boolean;
+    explanation: string;
+  };
+  ranking_vs_classification_summary: {
+    roc_auc: number;
+    pr_auc: number;
+    interpretation: string;
+  };
+  threshold_sweep_curve: ThresholdSweepPoint[];
+}
+
+export interface PositionalClassDistribution {
+  position: number;
+  p_lower: number;
+  p_upper: number;
+  p_digits: number;
+  p_symbols: number;
+}
+
+export interface GeneratorArtefactAudit {
+  candidate_counts: {
+    positive_count: number;
+    negative_count: number;
+  };
+  stem_overlap_audit: {
+    stems_checked: number;
+    negative_candidates_with_stems: number;
+    overlap_rate: number;
+    isolated: boolean;
+  };
+  transition_divergence: {
+    jensen_shannon_divergence: number;
+    cosine_similarity: number;
+    interpretation: string;
+  };
+  positive_transition_matrix_4x4: number[][];
+  negative_transition_matrix_4x4: number[][];
+  positional_distributions: {
+    positive: PositionalClassDistribution[];
+    negative: PositionalClassDistribution[];
+  };
+}
+
+export interface Phase423ExperimentResult extends Phase42GeneralizationExperimentResult {
+  threshold_robustness?: ThresholdRobustnessReport;
+}
+
+export interface Phase423AuditManifest {
+  schema_version: 'predict_ps_phase4_2_3_v1';
+  manifest_type: string;
+  timestamp_utc: string;
+  phase: string;
+  environment: {
+    python_version: string;
+    platform: string;
+    scikit_learn_version: string;
+    numpy_version: string;
+    scipy_version: string;
+  };
+  combined_generalization_audit: {
+    lexical_isolation: {
+      train_words: string[];
+      val_words: string[];
+      test_words: string[];
+      shared_train_val: number;
+      shared_train_test: number;
+      shared_val_test: number;
+      verified: boolean;
+    };
+    template_isolation: {
+      train_templates: string[];
+      val_templates: string[];
+      test_templates: string[];
+      shared_train_test: number;
+      verified: boolean;
+    };
+    combined_isolation_audit: {
+      combined_isolation_verified: boolean;
+      lexical_disjoint: boolean;
+      template_disjoint: boolean;
+      exact_duplicates_zero: boolean;
+      normalized_duplicates_zero: boolean;
+      counts: {
+        train_words: number;
+        val_words: number;
+        test_words: number;
+        train_templates: string[];
+        val_templates: string[];
+        test_templates: string[];
+      };
+    };
+  };
+  generator_artefact_audits: {
+    v2_uniform_audit: GeneratorArtefactAudit;
+    v2b_syllabic_audit: GeneratorArtefactAudit;
+  };
+  threshold_robustness_summary: Record<string, {
+    threshold: number;
+    ppr: number;
+    fsr: number;
+    regime: string;
+  }>;
+  experiments: Record<string, Phase423ExperimentResult>;
+}
+

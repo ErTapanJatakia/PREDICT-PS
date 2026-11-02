@@ -1067,9 +1067,12 @@ export function validatePhase4ArtifactSchema(data: unknown): { valid: boolean; e
   if (obj.schema_version === 'predict_ps_phase4_2_2_v1') {
     return validatePhase42GeneralizationManifestSchema(data);
   }
+  if (obj.schema_version === 'predict_ps_phase4_2_3_v1') {
+    return validatePhase423AuditManifestSchema(data);
+  }
 
   if (obj.schema_version !== 'predict_ps_phase4_v1') {
-    errors.push('Invalid or missing schema_version (expected "predict_ps_phase4_v1", "predict_ps_phase4_1_v1", or "predict_ps_phase4_2_2_v1").');
+    errors.push('Invalid or missing schema_version (expected "predict_ps_phase4_v1", "predict_ps_phase4_1_v1", "predict_ps_phase4_2_2_v1", or "predict_ps_phase4_2_3_v1").');
   }
 
   const allowedStatuses = ['not_trained', 'synthetic_pipeline_validation', 'approved_research_evaluation'];
@@ -1259,4 +1262,144 @@ export function calculateExtendedMetrics(
     matthewsCorrelationCoefficient: Number(matthewsCorrelationCoefficient.toFixed(4)),
   };
 }
+
+/**
+ * Calculates Positive Prediction Rate (PPR):
+ * PPR = (TP + FP) / Total
+ * Bounded in [0.0, 1.0].
+ */
+export function calculatePPR(truePositives: number, falsePositives: number, total: number): number {
+  if (total <= 0) return 0.0;
+  return Number(((truePositives + falsePositives) / total).toFixed(4));
+}
+
+/**
+ * Diagnoses classification regime:
+ * - degenerate_all_negative: 0 true positives and 0 false positives (PPR = 0.0)
+ * - degenerate_all_positive: 0 true negatives and 0 false negatives (PPR = 1.0)
+ * - balanced_classification: PPR within 0.35..0.65
+ * - skewed_classification: other asymmetric rates
+ */
+export function diagnoseClassificationRegime(
+  tp: number,
+  fp: number,
+  tn: number,
+  fn: number
+): {
+  regimeType: 'degenerate_all_negative' | 'degenerate_all_positive' | 'balanced_classification' | 'skewed_classification';
+  isDegenerateAllNegative: boolean;
+  isDegenerateAllPositive: boolean;
+  ppr: number;
+  explanation: string;
+} {
+  const total = tp + fp + tn + fn;
+  const ppr = calculatePPR(tp, fp, total);
+
+  if (tp + fp === 0) {
+    return {
+      regimeType: 'degenerate_all_negative',
+      isDegenerateAllNegative: true,
+      isDegenerateAllPositive: false,
+      ppr: 0.0,
+      explanation: 'Model predicted negative for 100% of samples (PPR = 0.0%). On balanced 50/50 test data, this yields nominal 50.0% accuracy and 100.0% False Strong Rate. This reflects null decision boundary collapse, NOT random guessing.',
+    };
+  }
+
+  if (tn + fn === 0) {
+    return {
+      regimeType: 'degenerate_all_positive',
+      isDegenerateAllNegative: false,
+      isDegenerateAllPositive: true,
+      ppr: 1.0,
+      explanation: 'Model predicted positive for 100% of samples (PPR = 100.0%), causing 100.0% False Weak Rate.',
+    };
+  }
+
+  if (Math.abs(ppr - 0.5) <= 0.15) {
+    return {
+      regimeType: 'balanced_classification',
+      isDegenerateAllNegative: false,
+      isDegenerateAllPositive: false,
+      ppr,
+      explanation: 'Model classifies both positive and negative candidates with a balanced prediction rate.',
+    };
+  }
+
+  return {
+    regimeType: 'skewed_classification',
+    isDegenerateAllNegative: false,
+    isDegenerateAllPositive: false,
+    ppr,
+    explanation: `Model exhibits asymmetric decision bias with PPR = ${(ppr * 100).toFixed(1)}%.`,
+  };
+}
+
+/**
+ * Validates Phase 4.2.3 Combined Generalization, Generator Artefacts, and Threshold Audit manifest.
+ */
+export function validatePhase423AuditManifestSchema(payload: unknown): {
+  valid: boolean;
+  errors: string[];
+} {
+  const errors: string[] = [];
+
+  if (!payload || typeof payload !== 'object') {
+    return { valid: false, errors: ['Manifest payload must be a non-null object.'] };
+  }
+
+  const obj = payload as Record<string, unknown>;
+
+  if (obj.schema_version !== 'predict_ps_phase4_2_3_v1') {
+    errors.push(`Invalid schema_version: expected "predict_ps_phase4_2_3_v1", got "${obj.schema_version}".`);
+  }
+
+  if (obj.manifest_type !== 'predict_ps_combined_generalization_and_threshold_audit') {
+    errors.push(`Invalid manifest_type: expected "predict_ps_combined_generalization_and_threshold_audit", got "${obj.manifest_type}".`);
+  }
+
+  if (!obj.combined_generalization_audit || typeof obj.combined_generalization_audit !== 'object') {
+    errors.push('Missing "combined_generalization_audit" object.');
+  }
+
+  if (!obj.generator_artefact_audits || typeof obj.generator_artefact_audits !== 'object') {
+    errors.push('Missing "generator_artefact_audits" object.');
+  }
+
+  if (!obj.experiments || typeof obj.experiments !== 'object') {
+    errors.push('Missing "experiments" object.');
+  } else {
+    const exps = obj.experiments as Record<string, unknown>;
+    const requiredExps = [
+      'exp_g1_random_split_baseline',
+      'exp_g2_lexical_disjoint',
+      'exp_g3_template_disjoint',
+      'exp_g4_independent_v2_holdout',
+      'exp_g5_lexical_diagnostic_random',
+      'exp_g6_lexical_diagnostic_disjoint',
+      'exp_g7_position_diagnostic_standard',
+      'exp_g8_position_diagnostic_heldout',
+      'exp_g9_combined_lexical_template_isolation',
+      'exp_g10_independent_v2b_syllabic_negatives'
+    ];
+    for (const expKey of requiredExps) {
+      if (!exps[expKey] || typeof exps[expKey] !== 'object') {
+        errors.push(`Missing experiment "${expKey}" in Phase 4.2.3 manifest.`);
+      }
+    }
+  }
+
+  // Strict raw password prohibition
+  const prohibitedKeys = ['candidates', 'passwords', 'raw_passwords', 'password_list', 'credentials'];
+  for (const key of prohibitedKeys) {
+    if (key in obj) {
+      errors.push(`Privacy violation: Prohibited key "${key}" detected in manifest.`);
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
 

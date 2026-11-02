@@ -22,6 +22,9 @@ import {
   validatePhase4ArtifactSchema,
   validatePhase41ManifestSchema,
   validatePhase42GeneralizationManifestSchema,
+  validatePhase423AuditManifestSchema,
+  calculatePPR,
+  diagnoseClassificationRegime,
   calculateExtendedMetrics,
   calculateFalseStrongRate,
   calculateFalseWeakRate,
@@ -497,6 +500,54 @@ test('source-level privacy check: ensures no breach APIs or remote telemetry are
   assert.ok(!foundationSource.includes('axios'));
   assert.ok(!foundationSource.includes('fetch('));
 });
+
+test('calculatePPR: correctly computes positive prediction rate and handles edge cases', () => {
+  assert.equal(calculatePPR(250, 50, 1000), 0.3);
+  assert.equal(calculatePPR(0, 0, 1000), 0.0);
+  assert.equal(calculatePPR(500, 500, 1000), 1.0);
+  assert.equal(calculatePPR(0, 0, 0), 0.0);
+});
+
+test('diagnoseClassificationRegime: correctly characterizes all-negative and balanced regimes', () => {
+  // All-negative regime (G6/G8 collapse)
+  const degNeg = diagnoseClassificationRegime(0, 0, 500, 500);
+  assert.equal(degNeg.regimeType, 'degenerate_all_negative');
+  assert.equal(degNeg.isDegenerateAllNegative, true);
+  assert.equal(degNeg.ppr, 0.0);
+  assert.ok(degNeg.explanation.includes('NOT random guessing'));
+
+  // Balanced regime (PPR ≈ 0.50)
+  const balanced = diagnoseClassificationRegime(240, 260, 250, 250);
+  assert.equal(balanced.regimeType, 'balanced_classification');
+  assert.equal(balanced.isDegenerateAllNegative, false);
+
+  // All-positive regime
+  const degPos = diagnoseClassificationRegime(500, 500, 0, 0);
+  assert.equal(degPos.regimeType, 'degenerate_all_positive');
+  assert.equal(degPos.isDegenerateAllPositive, true);
+});
+
+test('validatePhase423AuditManifestSchema: validates Phase 4.2.3 manifest and rejects privacy violations', () => {
+  const manifestPath = resolve(process.cwd(), 'src/data/phase4_2_3_audit_manifest.json');
+  const content = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+
+  const validRes = validatePhase423AuditManifestSchema(content);
+  assert.equal(validRes.valid, true, `Errors: ${validRes.errors.join(', ')}`);
+
+  // Backward compatibility: validatePhase4ArtifactSchema accepts predict_ps_phase4_2_3_v1
+  const backwardRes = validatePhase4ArtifactSchema(content);
+  assert.equal(backwardRes.valid, true);
+
+  // Prohibits raw candidate passwords
+  const leakManifest = {
+    ...content,
+    raw_passwords: ['TestPassword!23'],
+  };
+  const leakRes = validatePhase423AuditManifestSchema(leakManifest);
+  assert.equal(leakRes.valid, false);
+  assert.ok(leakRes.errors.some(e => e.includes('Privacy violation')));
+});
+
 
 
 

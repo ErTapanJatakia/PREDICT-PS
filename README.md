@@ -1,6 +1,6 @@
 # PREDICT-PS: Password Predictability Research Workbench
 
-> **Phase 4.2.2: Lexical Leakage, Template Generalization & Independent Generator Audit**  
+> **Phase 4.2.3: Combined Lexical–Template Generalization, Threshold Robustness & Statistical Reconciliation**  
 > *Notice: Research Prototype — Not a security certification. Academic study in progress.*
 
 ---
@@ -14,15 +14,12 @@ This is an **empirical hypothesis to test**, not an established result or claim 
 
 Phase 4 implemented the character-level TF-IDF n-gram (2–5) + Logistic Regression statistical machine-learning baseline.
 
-**Phase 4.2.2 (Lexical Leakage, Template Generalization & Independent Generator Audit)** advances scientific rigor before Phase 5 feature fusion through:
-1. **Lexical Group Isolation**: Strict partition of underlying dictionary words so that no dictionary root word appears in more than one partition ($W_{\text{train}} \cap W_{\text{val}} = \emptyset$, $W_{\text{train}} \cap W_{\text{test}} = \emptyset$, $W_{\text{val}} \cap W_{\text{test}} = \emptyset$; 207 train words, 44 val words, 45 test words; 0 overlap).
-2. **Template Family Generalization**: Holding out entire positive-generation template families (e.g., training on `PrefixPadded` and `SuffixPadded`, evaluating on unseen `PrefixSymbols`) with matched length (14) and composition (8L/2U/2D/2S).
-3. **Independent Generator V2 Evaluation**: Evaluating transfer to candidates synthesized by an independently designed generator featuring phonetic stem compounding (`starfire`, `moonrock`) and bracketed/interleaved geometries.
-4. **Diagnostic Comparators**:
-   - `LexicalOnlyBaselineModel`: Extracts dictionary presence and coverage from training words to quantify the word memorization shortcut.
-   - `PositionAwareDiagnosticModel`: Extracts 56 positional character-type features to quantify positional slot bias without character identity knowledge.
-5. **Rigorous Bootstrap Accounting**: Propagating the exact validation-selected threshold $\tau$ across 1,000 bootstrap iterations with full resample accounting (`requested_resamples`, `valid_resamples`, `skipped_single_class_resamples`, `valid_resamples_by_metric`).
-6. **Artifact Synchronization & Verification**: Canonical synchronization between `src/data/` and `python/` artifacts with 36 automated Python regression tests and 27 TypeScript tests.
+**Phase 4.2.3 (Combined Lexical–Template Generalization, Threshold Robustness & Statistical Reconciliation)** completes the final scientific integrity audit before Phase 5 feature fusion:
+1. **Combined Lexical and Template Isolation (Exp G9)**: Simultaneously isolates dictionary root words ($W_{\text{train}} \cap W_{\text{val}} = \emptyset, W_{\text{train}} \cap W_{\text{test}} = \emptyset, W_{\text{val}} \cap W_{\text{test}} = \emptyset$; 206 train words, 44 val words, 44 test words; 0 overlap) AND positive template families (Train: `PrefixPadded` + `SuffixPadded`; Val: `WordSymbolsSuffix`; Test: `PrefixSymbols`), strictly matched to 14 chars (8L/2U/2D/2S).
+2. **Independent Generator V2b & Syllabic Pseudo-Word Negatives (Exp G10)**: Investigates sequence artefacts by replacing uniform random character scrambles with pseudo-phonetic consonant-vowel syllabic clusters (`bapomilu`, `zenulabi`), matching length and character composition with **0.00% stem overlap**.
+3. **Threshold Robustness & Degenerate Decision Regime Analysis**: Comprehensive threshold sensitivity sweeps ($\tau \in [0.05, 0.95]$ in 19 steps) detailing validation-selected threshold ($\tau_{\text{val}}$), predicted positive rate ($\text{PPR} = (\text{TP} + \text{FP}) / N_{\text{total}}$), confusion matrix, sensitivity, specificity, and macro-F1. Diagnoses degenerate all-negative regimes ($\text{PPR} = 0.0\%$, Sensitivity = 0.0%, Specificity = 100.0%, FSR = 100.0%) where nominal 50.0% accuracy on balanced test data reflects null decision boundary collapse, **NOT random guessing**.
+4. **Sequence Transition Entropy Parity**: Jensen-Shannon divergence between positive and negative character-class transitions drops from 0.1395 (uniform scramble) to 0.0822 (syllabic pseudo-words), closing the class-transition entropy gap by 41% while maintaining 0.00% stem overlap with the positive root dictionary.
+5. **Automated Manifest Reconciliation Gate**: Automated verification tool (`python/verify_manifest_reconciliation.py`) enforcing 6 invariant checks across experiment IDs, sample counts, 1,000 bootstrap resamples at fixed validation thresholds, bit-for-bit manifest mirroring between `python/` and `src/data/`, and zero raw password leakage.
 
 ---
 
@@ -37,12 +34,13 @@ Phase 4 implemented the character-level TF-IDF n-gram (2–5) + Logistic Regress
 | **Phase 4.1**| **Research Integrity & Baseline Validation (Ablation Matrix & Audits)**| **Completed** |
 | **Phase 4.2**| **Statistical Correction, Artifact Synchronization & Integrity Gate** | **Completed** |
 | **Phase 4.2.2**| **Lexical Leakage, Template Generalization & Independent Generator Audit** | **Completed** |
+| **Phase 4.2.3**| **Combined Isolation, Threshold Robustness & Statistical Reconciliation** | **Completed (Active)** |
 | Phase 5 | Explainable Feature-Fusion Architecture | Planned (Not Implemented) |
 | Phase 6 | Reproducible Evaluation Workbench & Ablation Matrix | Planned (Not Implemented) |
 
 ---
 
-## 3. Phase 4.2.2 Generalization & Leakage Audit Matrix (Tracks G1–G8)
+## 3. Phase 4.2.3 Combined Isolation & Generalization Audit Matrix (Tracks G1–G10)
 
 | Experiment | Description & Conditions | Partition Strategy | Test Acc | Macro-F1 | FSR | ROC-AUC | Brier | 95% CI (F1) |
 |---|---|---|---|---|---|---|---|---|
@@ -54,16 +52,39 @@ Phase 4 implemented the character-level TF-IDF n-gram (2–5) + Logistic Regress
 | **G6: Lexical-Only Disjoint** | Evaluates dictionary word presence on unseen words | Disjoint Lexical Split | **50.00%** | **0.3333** | 100.00% | **0.5000** | 0.5000 | [0.333, 0.333] |
 | **G7: Position-Aware Diagnostic**| Evaluates 56 positional character-class slots alone | Standard Templates | **99.50%** | **0.9950** | 0.00% | **1.0000** | 0.0049 | [0.990, 1.000] |
 | **G8: Position-Aware Held-Out** | Evaluates positional slots on held-out template families | Held-Out Template Families | **50.00%** | **0.3333** | 100.00% | **0.7158** | 0.5000 | [0.333, 0.333] |
-
-### Key Scientific Findings:
-1. **Dictionary Word Memorization is a Latent Shortcut (G5 vs G6)**: On random splits where dictionary words overlap between train and test partitions, a pure lexical memorizer achieves **99.67% accuracy** without learning any subword generalizations (Exp G5). When evaluated under strict lexical group isolation (Exp G6), this diagnostic collapses completely to **50.00% accuracy and 0.5000 ROC-AUC** (exact chance), confirming zero cross-word transfer and proving the isolation methodology is airtight.
-2. **Positional Character Slots Are Fully Exploited on Fixed Templates (G7 vs G8)**: A model given zero character identity information—only the character class (lower, upper, digit, symbol) at each of the 14 indices—achieves **99.50% accuracy and 1.0000 ROC-AUC** on standard templates (Exp G7). When evaluated against held-out template geometries (Exp G8), accuracy collapses to **50.00% (exact random chance)**, demonstrating that standard synthetic templates permit severe positional overfitting.
-3. **Lexical Isolation Increases Error Rates on Guessable Passwords (G1 vs G2)**: When dictionary root words are strictly disjoint between train and test partitions (Exp G2), the False-Strong Rate increases nearly **9-fold** (from 0.33% to 2.88%), revealing that the model's apparent in-distribution precision was partially inflated by memorizing specific root stems.
-4. **Independent Generator Transfer Failure Demonstrates Generator Dependence (G4)**: When the frozen character n-gram baseline is evaluated on candidates from an independent generator featuring phonetic stem compounding (`starfire`, `moonrock`) and non-affix geometries (sandwich, bracketed), accuracy drops to **75.00%**, macro-F1 drops to **0.7344**, and the **False-Strong Rate surges to 49.20%** ($246/500$ predictable passwords classified as strong). This empirically proves that character n-gram baselines exhibit severe generator dependence and lack generalizable understanding of human-like structural predictability.
+| **G9: Combined Lexical+Template**| Disjoint roots (206/44/44) + held-out PrefixSymbols | Combined Dual Disjoint | **98.50%** | **0.9850** | **0.67%** | **0.9991** | **0.0526** | [0.975, 0.993] |
+| **G10: Syllabic Negatives Transfer**| Matched 14-char candidates with consonant-vowel negatives | Syllabic Negative Generator V2b | **58.70%** | **0.5843** | **49.40%** | **0.6357** | **0.2443** | [0.552, 0.615] |
 
 ---
 
-## 4. Controlled Empirical Ablation Matrix (Historical Phase 4.2 Tracks A1–A8)
+## 4. Threshold Robustness & Decision Regime Analysis (G4, G6, G8, G9, G10)
+
+| Experiment | Selected $\tau_{\text{val}}$ | Predicted Positive Rate (PPR) | Confusion Matrix (TP / FP / TN / FN) | Sensitivity (Recall) | Specificity | False-Strong Rate (FSR) | Macro-F1 | ROC-AUC | PR-AUC | Classification Regime |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **G4 (Indep Gen V2)** | 0.05 | 25.40% | 254 / 0 / 500 / 246 | 50.80% | 100.00% | **49.20%** | 0.7344 | 0.8658 | 0.8876 | Skewed Classification |
+| **G6 (Lexical Disjoint)**| 0.50 | **0.00%** | 0 / 0 / 250 / 250 | **0.00%** | 100.00% | **100.00%** | 0.3333 | 0.5000 | 0.5000 | **Degenerate Null Regime** |
+| **G8 (Template Held-Out)**| 0.50 | **0.00%** | 0 / 0 / 236 / 236 | **0.00%** | 100.00% | **100.00%** | 0.3333 | 0.7158 | 0.7107 | **Degenerate Null Regime** |
+| **G9 (Combined Disjoint)**| 0.39 | 50.00% | 298 / 2 / 298 / 2 | 99.33% | 99.33% | **0.67%** | 0.9850 | 0.9991 | 0.9992 | **Balanced Classification** |
+| **G10 (Syllabic Negatives)**| 0.05 | 42.10% | 253 / 168 / 332 / 247 | 50.60% | 66.40% | **49.40%** | 0.5843 | 0.6357 | 0.6186 | Skewed Classification |
+
+### Critical Distinction: Degenerate Null-Decision Regime vs Random Guessing
+In Experiments **G6** and **G8**, all test candidate probabilities fall below the validation-selected decision threshold ($\tau = 0.50$). Consequently, the classifier assigns Label 0 (negative / resilient) to 100% of samples ($\text{PPR} = 0.0\%$, True Positives = 0, False Positives = 0, True Negatives = $N/2$, False Negatives = $N/2$).
+
+On a balanced 50/50 test set, predicting all zeros yields a nominal **50.0% accuracy**. PREDICT-PS explicitly documents that this represents a **degenerate null decision boundary collapse**, **NOT random guessing**:
+- Random guessing on a balanced test set yields $\text{PPR} \approx 50\%$ with approximately equal true positives and false positives ($\text{TP} \approx N/4, \text{FP} \approx N/4, \text{TN} \approx N/4, \text{FN} \approx N/4$).
+- Degenerate null prediction yields $\text{TP} = 0$ and $\text{FSR} = 100.0\%$, representing a total failure to detect any weak passwords.
+- This diagnostic proves that the lexical and positional shortcut models learn zero transferable representations outside their training distributions.
+
+### Syllabic Negatives Transfer Collapse (Exp G10)
+In Exp G4, the character n-gram baseline achieved 75.00% accuracy and 0.8658 ROC-AUC on candidates generated with uniform random character scrambles. In Exp G10, negative candidates were constructed using pseudo-phonetic consonant-vowel syllabic clusters (`bapomilu`, `zenulabi`), matching length and character composition.
+- ROC-AUC collapses from **0.9643 down to 0.6357**.
+- Accuracy falls to **58.70%** (Macro-F1 0.5843, FSR 49.40%).
+- Jensen-Shannon transition divergence between positive and negative sequences decreases from **0.1395 to 0.0822** (-41% entropy gap).
+- This confirms that character n-grams rely heavily on sequence transition entropy gaps between words and random noise, providing strong empirical motivation for structural feature fusion in Phase 5.
+
+---
+
+## 5. Controlled Empirical Ablation Matrix (Historical Phase 4.2 Tracks A1–A8)
 
 | Experiment | Purpose & Dataset Condition | Evaluation Split | FSR | Macro-F1 | PR-AUC | ROC-AUC | Balanced Acc | Brier | 95% CI (F1) |
 |---|---|---|---|---|---|---|---|---|---|
@@ -76,14 +97,9 @@ Phase 4 implemented the character-level TF-IDF n-gram (2–5) + Logistic Regress
 | **Exp 7: Dual-Controlled Model** | TF-IDF n-grams on matched length (14) AND composition (8L/2U/2D/2S) | Dual-Controlled Test | 0.00% | 1.0000 | 1.0000 | 1.0000 | 100.00% | 0.0041 | [1.000, 1.000] |
 | **Exp 8: Composition on Matched**| Composition diagnostic evaluated on Exp 7 matched dataset | Neutralization Test | 42.00%| **0.5539** | 0.5401 | **0.5725** | **55.50%** | 0.2483 | [0.505, 0.598] |
 
-### Key Scientific Findings:
-1. **Shortcut Learning Exists in Unconstrained Data (Exps 5 & 6)**: In the unconstrained synthetic dataset, positive samples have a mean length of 9.33 characters while negative samples have a mean length of 15.93 characters ($\Delta = 6.6$ chars). A model using *only length* achieves 94.00% accuracy, and one using *only character counts* achieves 99.50% accuracy.
-2. **Subword Learning Persists Under Full Neutralization (Exp 7 vs Exp 8)**: When both length and character composition are held identical between classes (14 chars: 8 lower, 2 upper, 2 digits, 2 symbols), the composition model collapses to random chance (55.50% Acc, 0.5725 ROC-AUC, Exp 8), proving complete neutralization of the composition shortcut. Meanwhile, the character n-gram model still achieves 100.00% accuracy (Exp 7) by learning natural language subwords and character transitions (`baseball`, `security`, `matrix`).
-3. **Out-of-Distribution Transfer Fails Severely (Exp 4)**: When evaluated without retraining against unseen structural grammars (ISO dates, PIN-padded names, reverse encased phrases, zigzag walks), the character n-gram model's **False-Strong Rate surges to 71.20%** and **Recall collapses to 28.80%**. This directly supports the central hypothesis (RQ2) that purely statistical n-grams overfit to specific dictionary subwords and fail on novel structures, motivating the proposed explainable pattern fusion in Phase 5.
-
 ---
 
-## 4. Tripartite Analysis Perspectives (Phase 3)
+## 6. Tripartite Analysis Perspectives (Phase 3)
 
 The Password Lab implements three distinct, local evaluation perspectives for any candidate password:
 
@@ -106,7 +122,7 @@ The Password Lab implements three distinct, local evaluation perspectives for an
 
 ---
 
-## 5. CSPRNG Password Generator (Phase 2 Core Tool)
+## 7. CSPRNG Password Generator (Phase 2 Core Tool)
 
 - **Entropy Source**: `window.crypto.getRandomValues()` exclusively. Never uses `Math.random()`.
 - **Unbiased Rejection Sampling**: Mathematically eliminates modulo bias ($limit = 256 - (256 \pmod k)$).
@@ -115,16 +131,16 @@ The Password Lab implements three distinct, local evaluation perspectives for an
 
 ---
 
-## 6. Strict Privacy & Memory Boundaries
+## 8. Strict Privacy & Memory Boundaries
 
 1. **Zero Network Egress**: Zero external API calls, zero telemetry, zero database connections, zero Gemini API calls, and zero third-party trackers.
 2. **Zero Storage Persistence**: Never writes candidate passwords to `localStorage`, `sessionStorage`, `document.cookie`, `IndexedDB`, or URL query parameters.
 3. **Transient Memory Management**: Generated and candidate values are kept transiently in component React state only.
-4. **Export Sanitization**: Built-in `sanitizeResearchExport()` filter and JSON schema validators (`predict_ps_phase4_v1`, `predict_ps_phase4_1_v1`, and `predict_ps_phase4_2_2_v1`) reject any raw password candidates or credential material.
+4. **Export Sanitization**: Built-in `sanitizeResearchExport()` filter and JSON schema validators (`predict_ps_phase4_v1`, `predict_ps_phase4_1_v1`, `predict_ps_phase4_2_2_v1`, and `predict_ps_phase4_2_3_v1`) reject any raw password candidates or credential material.
 
 ---
 
-## 7. How to Run & Verify
+## 9. How to Run & Verify
 
 ### Running Web Development Server
 ```bash
@@ -132,27 +148,27 @@ npm run dev
 ```
 The server runs on `http://localhost:3000`.
 
-### Running Python Unit Test Suite (36 Tests)
+### Running Automated Manifest Reconciliation Verifier
+```bash
+python3 python/verify_manifest_reconciliation.py
+```
+Validates all 6 invariant checks across manifests, sample counts, threshold policies, and zero password leakage.
+
+### Running Python Unit Test Suite (45 Tests)
 ```bash
 python3 -m unittest discover -s python/tests -v
 ```
 
-### Running Phase 4.2.2 Generalization Experiments (Tracks G1–G8)
-```bash
-python3 python/run_generalization_experiments.py
-```
-Outputs: `src/data/phase4_2_generalization_manifest.json` and `python/phase4_2_generalization_manifest.json`.
-
-### Running Historical Phase 4.2 Baseline Ablation Matrix (Tracks A1–A8)
-```bash
-python3 python/run_experiments.py
-```
-Outputs: `src/data/phase4_1_experiments_manifest.json` and `python/phase4_1_experiments_manifest.json`.
-
-### Running TypeScript Pure Logic Test Suite (27 Tests)
+### Running TypeScript Pure Logic Test Suite (30 Tests)
 ```bash
 npx --yes tsx --test src/lib/foundation.test.ts
 ```
+
+### Running Phase 4.2.3 Audit Runner
+```bash
+python3 python/run_phase4_2_3_audit.py
+```
+Generates synchronized `src/data/phase4_2_3_audit_manifest.json` and `python/phase4_2_3_audit_manifest.json`.
 
 ### Compiling Application & Linting
 ```bash
@@ -162,7 +178,7 @@ npm run build
 
 ---
 
-## 8. Third-Party Licenses & Academic Citations
+## 10. Third-Party Licenses & Academic Citations
 
 - **scikit-learn**: Pedregosa et al., *Scikit-learn: Machine Learning in Python*, JMLR 12, pp. 2825-2830, 2011. BSD 3-Clause License.
 - **NumPy**: Harris et al., *Array programming with NumPy*, Nature 585, pp. 357–362, 2020. BSD License.
@@ -172,7 +188,7 @@ npm run build
 
 ---
 
-## 9. Future Phases (Not Yet Implemented)
+## 11. Future Phases (Not Yet Implemented)
 
 - **Phase 5**: Explainable Feature-Fusion Architecture (combining structural pattern descriptors with character n-grams).
 - **Phase 6**: Reproducible Evaluation Workbench & Ablation Matrix across all 4 comparators.

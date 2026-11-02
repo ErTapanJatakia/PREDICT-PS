@@ -571,3 +571,188 @@ def evaluate_predictions(
         )
 
     return metrics
+
+
+def analyze_threshold_robustness(
+    val_y_true: List[int],
+    val_probas: np.ndarray,
+    test_y_true: List[int],
+    test_probas: np.ndarray,
+    selected_threshold: Optional[float] = None,
+    optimization_target: str = "balanced"
+) -> Dict[str, Any]:
+    """
+    Phase 4.2.3: Threshold Robustness and Degenerate Classification Regime Analysis.
+    Performs comprehensive sensitivity and stability diagnostics:
+    1. Validation-based threshold selection (tau_val).
+    2. Test evaluation at tau_val including PPR (Positive Prediction Rate) and full confusion matrix.
+    3. Detection and honest characterization of degenerate all-negative or all-positive regimes.
+    4. Validation and test metric sweeps across tau in [0.05, 0.95] in 0.05 increments.
+    5. Clear distinction between ranking capability (ROC-AUC / PR-AUC) and threshold classification decisions.
+    """
+    if selected_threshold is None:
+        selected_threshold = select_validation_threshold(
+            val_y_true, val_probas, optimization_target=optimization_target
+        )
+
+    tau = float(selected_threshold)
+
+    # 1. Evaluate at selected threshold
+    test_preds = (test_probas >= tau).astype(int)
+    tn, fp, fn, tp = confusion_matrix(test_y_true, test_preds, labels=[0, 1]).ravel()
+    total = int(tp + fp + tn + fn)
+
+    ppr = float((tp + fp) / total) if total > 0 else 0.0
+    sensitivity = float(tp / (tp + fn)) if (tp + fn) > 0 else 0.0
+    specificity = float(tn / (tn + fp)) if (tn + fp) > 0 else 0.0
+    precision = float(tp / (tp + fp)) if (tp + fp) > 0 else 0.0
+    recall = sensitivity
+    accuracy = float((tp + tn) / total) if total > 0 else 0.0
+    balanced_acc = float(0.5 * (sensitivity + specificity))
+
+    f1_pos = (2 * tp) / (2 * tp + fp + fn) if (2 * tp + fp + fn) > 0 else 0.0
+    f1_neg = (2 * tn) / (2 * tn + fp + fn) if (2 * tn + fp + fn) > 0 else 0.0
+    macro_f1 = float((f1_pos + f1_neg) / 2.0)
+
+    try:
+        mcc = float(matthews_corrcoef(test_y_true, test_preds))
+    except Exception:
+        mcc = 0.0
+
+    try:
+        roc_auc = float(roc_auc_score(test_y_true, test_probas))
+    except Exception:
+        roc_auc = 0.5
+
+    try:
+        pr_auc = float(average_precision_score(test_y_true, test_probas))
+    except Exception:
+        pr_auc = 0.5
+
+    brier = float(brier_score_loss(test_y_true, test_probas))
+    fsr = float(fn / (tp + fn)) if (tp + fn) > 0 else 0.0
+    fwr = float(fp / (tn + fp)) if (tn + fp) > 0 else 0.0
+
+    # 2. Diagnose classification regime
+    is_all_neg = bool(tp + fp == 0)
+    is_all_pos = bool(tn + fn == 0)
+
+    if is_all_neg:
+        regime = "degenerate_all_negative"
+        regime_explanation = (
+            "The model predicted the negative class (Label 0: Strong/Resistant) for 100% of candidates (PPR = 0.0%). "
+            "On a balanced 50/50 test set, predicting all zeros yields exactly 50.0% nominal accuracy, 0.0% sensitivity, "
+            "100.0% specificity, and a catastrophic False-Strong Rate of 100.0%. "
+            "This reflects a complete decision boundary collapse under feature shift, NOT random guessing (which would "
+            "yield PPR ≈ 50.0% and balanced accuracy ≈ 50.0% with non-zero true positives)."
+        )
+    elif is_all_pos:
+        regime = "degenerate_all_positive"
+        regime_explanation = (
+            "The model predicted the positive class (Label 1: Predictable/Weak) for 100% of candidates (PPR = 100.0%). "
+            "This causes a False-Weak Rate of 100.0%."
+        )
+    elif abs(ppr - 0.5) <= 0.15:
+        regime = "balanced_classification"
+        regime_explanation = "The model classifies both positive and negative candidates with a balanced prediction rate."
+    else:
+        regime = "skewed_classification"
+        regime_explanation = f"The model exhibits asymmetric decision bias with PPR = {ppr * 100:.1f}%."
+
+    # 3. Sweep thresholds in increments of 0.05
+    sweep_thresholds = [round(t, 2) for t in np.arange(0.05, 0.96, 0.05)]
+    sweep_curve = []
+
+    for th in sweep_thresholds:
+        # Validation point
+        v_preds = (val_probas >= th).astype(int)
+        v_tn, v_fp, v_fn, v_tp = confusion_matrix(val_y_true, v_preds, labels=[0, 1]).ravel()
+        v_tot = int(v_tp + v_fp + v_tn + v_fn)
+        v_ppr = float((v_tp + v_fp) / v_tot) if v_tot > 0 else 0.0
+        v_acc = float((v_tp + v_tn) / v_tot) if v_tot > 0 else 0.0
+        v_f1_pos = (2 * v_tp) / (2 * v_tp + v_fp + v_fn) if (2 * v_tp + v_fp + v_fn) > 0 else 0.0
+        v_f1_neg = (2 * v_tn) / (2 * v_tn + v_fp + v_fn) if (2 * v_tn + v_fp + v_fn) > 0 else 0.0
+        v_f1 = float((v_f1_pos + v_f1_neg) / 2.0)
+        v_fsr = float(v_fn / (v_tp + v_fn)) if (v_tp + v_fn) > 0 else 0.0
+
+        # Test point
+        t_preds = (test_probas >= th).astype(int)
+        t_tn, t_fp, t_fn, t_tp = confusion_matrix(test_y_true, t_preds, labels=[0, 1]).ravel()
+        t_tot = int(t_tp + t_fp + t_tn + t_fn)
+        t_ppr = float((t_tp + t_fp) / t_tot) if t_tot > 0 else 0.0
+        t_acc = float((t_tp + t_tn) / t_tot) if t_tot > 0 else 0.0
+        t_sens = float(t_tp / (t_tp + t_fn)) if (t_tp + t_fn) > 0 else 0.0
+        t_spec = float(t_tn / (t_tn + t_fp)) if (t_tn + t_fp) > 0 else 0.0
+        t_bal = float(0.5 * (t_sens + t_spec))
+        t_f1_p = (2 * t_tp) / (2 * t_tp + t_fp + t_fn) if (2 * t_tp + t_fp + t_fn) > 0 else 0.0
+        t_f1_n = (2 * t_tn) / (2 * t_tn + t_fp + t_fn) if (2 * t_tn + t_fp + t_fn) > 0 else 0.0
+        t_f1 = float((t_f1_p + t_f1_n) / 2.0)
+        t_fsr = float(t_fn / (t_tp + t_fn)) if (t_tp + t_fn) > 0 else 0.0
+        t_fwr = float(t_fp / (t_tn + t_fp)) if (t_tn + t_fp) > 0 else 0.0
+
+        sweep_curve.append({
+            "threshold": th,
+            "is_selected": bool(abs(th - tau) < 0.025),
+            "val_accuracy": round(v_acc, 4),
+            "val_macro_f1": round(v_f1, 4),
+            "val_fsr": round(v_fsr, 4),
+            "val_ppr": round(v_ppr, 4),
+            "test_accuracy": round(t_acc, 4),
+            "test_balanced_accuracy": round(t_bal, 4),
+            "test_macro_f1": round(t_f1, 4),
+            "test_fsr": round(t_fsr, 4),
+            "test_fwr": round(t_fwr, 4),
+            "test_ppr": round(t_ppr, 4),
+            "test_sensitivity": round(t_sens, 4),
+            "test_specificity": round(t_spec, 4),
+            "test_confusion_matrix": {
+                "tp": int(t_tp),
+                "fp": int(t_fp),
+                "tn": int(t_tn),
+                "fn": int(t_fn)
+            }
+        })
+
+    return {
+        "selected_validation_threshold": round(tau, 3),
+        "metrics_at_selected_threshold": {
+            "confusion_matrix": {
+                "true_positives": int(tp),
+                "false_positives": int(fp),
+                "true_negatives": int(tn),
+                "false_negatives": int(fn),
+                "total": total
+            },
+            "predicted_positive_rate": round(ppr, 4),
+            "sensitivity": round(sensitivity, 4),
+            "specificity": round(specificity, 4),
+            "precision": round(precision, 4),
+            "recall": round(recall, 4),
+            "accuracy": round(accuracy, 4),
+            "balanced_accuracy": round(balanced_acc, 4),
+            "macro_f1": round(macro_f1, 4),
+            "mcc": round(mcc, 4),
+            "roc_auc": round(roc_auc, 4),
+            "pr_auc": round(pr_auc, 4),
+            "brier_score": round(brier, 4),
+            "false_strong_rate": round(fsr, 4),
+            "false_weak_rate": round(fwr, 4)
+        },
+        "classification_regime": {
+            "regime_type": regime,
+            "is_degenerate_all_negative": is_all_neg,
+            "is_degenerate_all_positive": is_all_pos,
+            "explanation": regime_explanation
+        },
+        "ranking_vs_classification_summary": {
+            "roc_auc": round(roc_auc, 4),
+            "pr_auc": round(pr_auc, 4),
+            "interpretation": (
+                f"ROC-AUC ({roc_auc:.4f}) and PR-AUC ({pr_auc:.4f}) measure threshold-free pairwise ranking. "
+                f"Even with acceptable ranking power, the fixed threshold tau={tau:.2f} produced PPR={ppr*100:.1f}% "
+                f"and FSR={fsr*100:.1f}%."
+            )
+        },
+        "threshold_sweep_curve": sweep_curve
+    }
+

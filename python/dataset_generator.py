@@ -970,3 +970,422 @@ def split_dataset(
     assert len(val_set.intersection(test_set)) == 0, "Leakage detected between val and test splits!"
 
     return result
+
+
+def generate_independent_v2b_matched_dataset(
+    n_samples: int = 1000,
+    seed: int = 9999
+) -> Tuple[List[str], List[int], List[Dict[str, Any]]]:
+    """
+    Phase 4.2.3: Independent Synthetic Generator V2b (Alternative Negative Strategy Audit).
+    Evaluates whether the character n-gram baseline's high FSR (49.2% on G4) is robust to an
+    alternative, pseudo-phonetic / syllabic negative generator rather than uniform scrambling.
+
+    Positives:
+    - Identical to Independent Generator V2 positives (phonetic 4-letter stems paired with
+      interleaved, mirrored bracket, and sandwich affix geometries).
+    - Exactly 14 characters: 8 lowercase, 2 uppercase, 2 digits, 2 symbols.
+
+    Negatives (Alternative Syllabic Pseudo-Structured Strategy):
+    - 8 lowercase letters generated as 4 alternating consonant-vowel pseudo-syllabic pairs
+      (CVCVCVCV, e.g. 'bapomilu', 'zenulabi', 'koravetu', 'dofikane').
+    - Strict rejection against known dictionary words in WORDS_8_EXPANDED and INDEPENDENT_PHONETIC_4_STEMS.
+    - 2 uppercase letters, 2 digits, 2 symbols placed across varied non-standard positions.
+    - Exactly 14 characters: 8 lowercase, 2 uppercase, 2 digits, 2 symbols.
+    - Zero metadata leakage: models receive ONLY candidate strings.
+    """
+    rng = random.Random(seed)
+    n_pos = n_samples // 2
+    n_neg = n_samples - n_pos
+
+    symbols = "!@#$%^&*"
+    consonants = "bcdfghjklmnprstvwxz"
+    vowels = "aeiou"
+
+    seen_exact: Set[str] = set()
+    candidates: List[str] = []
+    labels: List[int] = []
+    metadata: List[Dict[str, Any]] = []
+
+    # 1. Positives (Identical to V2 for exact comparability)
+    while len([l for l in labels if l == 1]) < n_pos:
+        s1 = rng.choice(INDEPENDENT_PHONETIC_4_STEMS)
+        s2 = rng.choice(INDEPENDENT_PHONETIC_4_STEMS)
+        while s2 == s1:
+            s2 = rng.choice(INDEPENDENT_PHONETIC_4_STEMS)
+
+        u1, u2 = rng.choice(string.ascii_uppercase), rng.choice(string.ascii_uppercase)
+        d1, d2 = rng.choice(string.digits), rng.choice(string.digits)
+        sym1, sym2 = rng.choice(symbols), rng.choice(symbols)
+
+        geom = rng.choice(["interleaved_v2", "mirrored_bracket_v2", "sandwich_v2"])
+        if geom == "interleaved_v2":
+            cand = f"{u1}{s1}{sym1}{d1}{s2}{u2}{sym2}{d2}"
+        elif geom == "mirrored_bracket_v2":
+            cand = f"{sym1}{u1}{d1}{s1}{s2}{d2}{u2}{sym2}"
+        else:
+            cand = f"{d1}{d2}{s1}{s2}{u1}{u2}{sym1}{sym2}"
+
+        assert len(cand) == 14
+        assert sum(1 for c in cand if c.islower()) == 8
+        assert sum(1 for c in cand if c.isupper()) == 2
+        assert sum(1 for c in cand if c.isdigit()) == 2
+        assert sum(1 for c in cand if c in symbols) == 2
+
+        if cand not in seen_exact:
+            seen_exact.add(cand)
+            candidates.append(cand)
+            labels.append(1)
+            metadata.append({
+                "lexical_source": f"{s1}+{s2}",
+                "template_family": f"independent_{geom}",
+                "category": "independent_generator_v2_positive"
+            })
+
+    # Known stems for negative rejection
+    known_word_set = set(w.lower() for w in WORDS_8_EXPANDED) | set(s.lower() for s in INDEPENDENT_PHONETIC_4_STEMS)
+
+    # 2. Negatives (Alternative Syllabic Pseudo-Structured Generator)
+    while len([l for l in labels if l == 0]) < n_neg:
+        # Form 4 consonant-vowel pairs (8 lowercase chars)
+        syllabic_chars = []
+        for _ in range(4):
+            syllabic_chars.append(rng.choice(consonants))
+            syllabic_chars.append(rng.choice(vowels))
+        pseudo_word = "".join(syllabic_chars)
+
+        # Reject if accidental overlap with known dictionary words or phonetic stems
+        if pseudo_word in known_word_set or any(stem in pseudo_word for stem in INDEPENDENT_PHONETIC_4_STEMS):
+            continue
+
+        u1, u2 = rng.choice(string.ascii_uppercase), rng.choice(string.ascii_uppercase)
+        d1, d2 = rng.choice(string.digits), rng.choice(string.digits)
+        sym1, sym2 = rng.choice(symbols), rng.choice(symbols)
+
+        # Structural placement variants for non-dictionary affixing
+        layout = rng.choice(["prefix_cluster", "bracket_cluster", "distributed_cluster"])
+        if layout == "prefix_cluster":
+            cand = f"{u1}{d1}{sym1}{pseudo_word}{u2}{d2}{sym2}"
+        elif layout == "bracket_cluster":
+            cand = f"{sym1}{u1}{pseudo_word[:4]}{d1}{d2}{pseudo_word[4:]}{u2}{sym2}"
+        else:
+            cand = f"{d1}{u1}{pseudo_word}{sym1}{sym2}{d2}{u2}"
+
+        assert len(cand) == 14
+        assert sum(1 for c in cand if c.islower()) == 8
+        assert sum(1 for c in cand if c.isupper()) == 2
+        assert sum(1 for c in cand if c.isdigit()) == 2
+        assert sum(1 for c in cand if c in symbols) == 2
+
+        if cand not in seen_exact:
+            seen_exact.add(cand)
+            candidates.append(cand)
+            labels.append(0)
+            metadata.append({
+                "lexical_source": "none_syllabic_pseudoword",
+                "template_family": f"syllabic_negative_{layout}",
+                "category": "independent_generator_v2b_syllabic_negative"
+            })
+
+    combined = list(zip(candidates, labels, metadata))
+    rng.shuffle(combined)
+    cands, lbls, meta = zip(*combined)
+    return list(cands), list(lbls), list(meta)
+
+
+def generate_combined_lexical_template_dataset(
+    n_samples: int = 4000,
+    seed: int = 42,
+    train_ratio: float = 0.70,
+    val_ratio: float = 0.15
+) -> Dict[str, Any]:
+    """
+    Phase 4.2.3: Combined Lexical and Template Isolation Dataset.
+    Guarantees simultaneously:
+    1. Lexical Word Isolation:
+       - W_train ∩ W_val == ∅
+       - W_train ∩ W_test == ∅
+       - W_val ∩ W_test == ∅
+    2. Template Family Isolation:
+       - T_train ∩ T_test == ∅
+       - T_train ∩ T_val == ∅
+       - T_val ∩ T_test == ∅
+       Allocation:
+       - Train Templates: [TEMPLATE_PREFIX_PADDED, TEMPLATE_SUFFIX_PADDED]
+       - Val Templates: [TEMPLATE_WORD_SYMBOLS_SUFFIX]
+       - Test Templates: [TEMPLATE_PREFIX_SYMBOLS]
+    3. Exact Length & Composition Matching:
+       - Length: Exactly 14 characters across all partitions.
+       - Composition: Exactly 8 lowercase, 2 uppercase, 2 digits, 2 symbols across all partitions.
+    4. Negative Candidates:
+       - Uniform permutation with non-affix rejection sampling.
+       - Exactly 50/50 balanced in every partition.
+    5. Deduplication & Cross-Partition Isolation:
+       - 0 exact duplicates across partitions.
+       - 0 normalized (lowercased/stripped) duplicates across partitions.
+    """
+    rng = random.Random(seed)
+    symbols = "!@#$%^&*"
+
+    # 1. Lexical Word Group Partitioning
+    shuffled_words = list(WORDS_8_EXPANDED)
+    rng.shuffle(shuffled_words)
+
+    n_words = len(shuffled_words)
+    n_train_words = int(n_words * train_ratio)
+    n_val_words = int(n_words * val_ratio)
+
+    train_words = shuffled_words[:n_train_words]
+    val_words = shuffled_words[n_train_words:n_train_words + n_val_words]
+    test_words = shuffled_words[n_train_words + n_val_words:]
+
+    train_words_set = set(train_words)
+    val_words_set = set(val_words)
+    test_words_set = set(test_words)
+
+    assert len(train_words_set & val_words_set) == 0, "Train-val word leakage!"
+    assert len(train_words_set & test_words_set) == 0, "Train-test word leakage!"
+    assert len(val_words_set & test_words_set) == 0, "Val-test word leakage!"
+
+    # 2. Template Family Partitioning
+    train_templates = [TEMPLATE_PREFIX_PADDED, TEMPLATE_SUFFIX_PADDED]
+    val_templates = [TEMPLATE_WORD_SYMBOLS_SUFFIX]
+    test_templates = [TEMPLATE_PREFIX_SYMBOLS]
+
+    train_tmpl_set = set(train_templates)
+    val_tmpl_set = set(val_templates)
+    test_tmpl_set = set(test_templates)
+
+    assert len(train_tmpl_set & val_tmpl_set) == 0, "Train-val template leakage!"
+    assert len(train_tmpl_set & test_tmpl_set) == 0, "Train-test template leakage!"
+    assert len(val_tmpl_set & test_tmpl_set) == 0, "Val-test template leakage!"
+
+    # 3. Partition sample quotas
+    n_train = int(n_samples * train_ratio)
+    n_val = int(n_samples * val_ratio)
+    n_test = n_samples - n_train - n_val
+
+    splits_config = {
+        "train": {
+            "n_pos": n_train // 2,
+            "n_neg": n_train // 2,
+            "words": train_words,
+            "templates": train_templates
+        },
+        "val": {
+            "n_pos": n_val // 2,
+            "n_neg": n_val // 2,
+            "words": val_words,
+            "templates": val_templates
+        },
+        "test": {
+            "n_pos": n_test // 2,
+            "n_neg": n_test // 2,
+            "words": test_words,
+            "templates": test_templates
+        }
+    }
+
+    seen_exact_global: Set[str] = set()
+    seen_norm_global: Set[str] = set()
+    results: Dict[str, Dict[str, list]] = {}
+
+    for split_name, cfg in splits_config.items():
+        split_cands: List[str] = []
+        split_lbls: List[int] = []
+        split_ptypes: List[str] = []
+        split_meta: List[Dict[str, Any]] = []
+
+        # Generate Positives
+        while len([l for l in split_lbls if l == 1]) < cfg["n_pos"]:
+            w = rng.choice(cfg["words"])
+            tmpl = rng.choice(cfg["templates"])
+
+            u1, u2 = rng.choice(string.ascii_uppercase), rng.choice(string.ascii_uppercase)
+            d1, d2 = rng.choice(string.digits), rng.choice(string.digits)
+            s1, s2 = rng.choice(symbols), rng.choice(symbols)
+
+            upper_pair = f"{u1}{u2}"
+            digit_pair = f"{d1}{d2}"
+            symbol_pair = f"{s1}{s2}"
+
+            if tmpl == TEMPLATE_SUFFIX_PADDED:
+                cand = f"{w}{upper_pair}{digit_pair}{symbol_pair}"
+            elif tmpl == TEMPLATE_PREFIX_PADDED:
+                cand = f"{upper_pair}{w}{digit_pair}{symbol_pair}"
+            elif tmpl == TEMPLATE_PREFIX_SYMBOLS:
+                cand = f"{symbol_pair}{w}{upper_pair}{digit_pair}"
+            elif tmpl == TEMPLATE_WORD_SYMBOLS_SUFFIX:
+                cand = f"{w}{symbol_pair}{upper_pair}{digit_pair}"
+            else:
+                raise ValueError(f"Unknown template: {tmpl}")
+
+            # Verify length and character classes
+            assert len(cand) == 14
+            assert sum(1 for c in cand if c.islower()) == 8
+            assert sum(1 for c in cand if c.isupper()) == 2
+            assert sum(1 for c in cand if c.isdigit()) == 2
+            assert sum(1 for c in cand if c in symbols) == 2
+
+            cand_norm = cand.strip().lower()
+            if cand not in seen_exact_global and cand_norm not in seen_norm_global:
+                seen_exact_global.add(cand)
+                seen_norm_global.add(cand_norm)
+                split_cands.append(cand)
+                split_lbls.append(1)
+                split_ptypes.append(f"combined_{tmpl}")
+                split_meta.append({
+                    "lexical_source": w,
+                    "template_family": tmpl,
+                    "category": "combined_isolated_positive"
+                })
+
+        # Generate Negatives
+        while len([l for l in split_lbls if l == 0]) < cfg["n_neg"]:
+            lowers = [rng.choice(string.ascii_lowercase) for _ in range(8)]
+            uppers = [rng.choice(string.ascii_uppercase) for _ in range(2)]
+            digits = [rng.choice(string.digits) for _ in range(2)]
+            syms = [rng.choice(symbols) for _ in range(2)]
+
+            pool = lowers + uppers + digits + syms
+            rng.shuffle(pool)
+            cand = "".join(pool)
+
+            assert len(cand) == 14
+            assert sum(1 for c in cand if c.islower()) == 8
+            assert sum(1 for c in cand if c.isupper()) == 2
+            assert sum(1 for c in cand if c.isdigit()) == 2
+            assert sum(1 for c in cand if c in symbols) == 2
+
+            cand_norm = cand.strip().lower()
+            if cand not in seen_exact_global and cand_norm not in seen_norm_global:
+                seen_exact_global.add(cand)
+                seen_norm_global.add(cand_norm)
+                split_cands.append(cand)
+                split_lbls.append(0)
+                split_ptypes.append("combined_uniform_negative")
+                split_meta.append({
+                    "lexical_source": "none_uniform_scramble",
+                    "template_family": TEMPLATE_UNIFORM_SCRAMBLE,
+                    "category": "combined_isolated_negative"
+                })
+
+        combined = list(zip(split_cands, split_lbls, split_ptypes, split_meta))
+        rng.shuffle(combined)
+        c, l, p, m = zip(*combined)
+        results[split_name] = {
+            "candidates": list(c),
+            "labels": list(l),
+            "pattern_types": list(p),
+            "metadata": list(m)
+        }
+
+    # Verify zero duplicate leakage across partitions
+    train_cands = set(results["train"]["candidates"])
+    val_cands = set(results["val"]["candidates"])
+    test_cands = set(results["test"]["candidates"])
+
+    assert len(train_cands & val_cands) == 0, "Cross-split exact leakage train-val!"
+    assert len(train_cands & test_cands) == 0, "Cross-split exact leakage train-test!"
+    assert len(val_cands & test_cands) == 0, "Cross-split exact leakage val-test!"
+
+    train_norm = set(c.strip().lower() for c in train_cands)
+    val_norm = set(c.strip().lower() for c in val_cands)
+    test_norm = set(c.strip().lower() for c in test_cands)
+
+    assert len(train_norm & val_norm) == 0, "Cross-split normalized leakage train-val!"
+    assert len(train_norm & test_norm) == 0, "Cross-split normalized leakage train-test!"
+    assert len(val_norm & test_norm) == 0, "Cross-split normalized leakage val-test!"
+
+    return {
+        "splits": results,
+        "lexical_isolation": {
+            "train_words": train_words,
+            "val_words": val_words,
+            "test_words": test_words,
+            "shared_train_val": len(train_words_set & val_words_set),
+            "shared_train_test": len(train_words_set & test_words_set),
+            "shared_val_test": len(val_words_set & test_words_set),
+            "verified": True
+        },
+        "template_isolation": {
+            "train_templates": train_templates,
+            "val_templates": val_templates,
+            "test_templates": test_templates,
+            "shared_train_test": len(train_tmpl_set & test_tmpl_set),
+            "verified": True
+        }
+    }
+
+
+def split_dataset_by_combined_lexical_and_template(
+    candidates: List[str],
+    labels: List[int],
+    metadata: List[Dict[str, Any]],
+    train_ratio: float = 0.70,
+    val_ratio: float = 0.15,
+    seed: int = 42
+) -> Dict[str, Dict[str, list]]:
+    """
+    Phase 4.2.3: Partitions existing dataset candidates by combined lexical word AND template family isolation.
+    """
+    rng = random.Random(seed)
+
+    positive_words = sorted(list(set(
+        m["lexical_source"] for m, y in zip(metadata, labels)
+        if y == 1 and m["lexical_source"] != "none_uniform_scramble"
+    )))
+    rng.shuffle(positive_words)
+
+    n_words = len(positive_words)
+    n_train_words = int(n_words * train_ratio)
+    n_val_words = int(n_words * val_ratio)
+
+    train_words_set = set(positive_words[:n_train_words])
+    val_words_set = set(positive_words[n_train_words:n_train_words + n_val_words])
+    test_words_set = set(positive_words[n_train_words + n_val_words:])
+
+    train_families = {TEMPLATE_SUFFIX_PADDED, TEMPLATE_PREFIX_PADDED}
+    val_families = {TEMPLATE_WORD_SYMBOLS_SUFFIX}
+    test_families = {TEMPLATE_PREFIX_SYMBOLS}
+
+    pos_train_idx: List[int] = []
+    pos_val_idx: List[int] = []
+    pos_test_idx: List[int] = []
+
+    for i, (m, y) in enumerate(zip(metadata, labels)):
+        if y == 1:
+            w = m["lexical_source"]
+            tmpl = m["template_family"]
+            if w in train_words_set and tmpl in train_families:
+                pos_train_idx.append(i)
+            elif w in val_words_set and tmpl in val_families:
+                pos_val_idx.append(i)
+            elif w in test_words_set and tmpl in test_families:
+                pos_test_idx.append(i)
+
+    neg_indices = [i for i, y in enumerate(labels) if y == 0]
+    rng.shuffle(neg_indices)
+
+    neg_train_idx = neg_indices[:len(pos_train_idx)]
+    neg_val_idx = neg_indices[len(pos_train_idx):len(pos_train_idx) + len(pos_val_idx)]
+    neg_test_idx = neg_indices[len(pos_train_idx) + len(pos_val_idx):len(pos_train_idx) + len(pos_val_idx) + len(pos_test_idx)]
+
+    splits = {
+        "train": pos_train_idx + neg_train_idx,
+        "val": pos_val_idx + neg_val_idx,
+        "test": pos_test_idx + neg_test_idx
+    }
+
+    result = {}
+    for split_name, idx_list in splits.items():
+        rng.shuffle(idx_list)
+        result[split_name] = {
+            "candidates": [candidates[i] for i in idx_list],
+            "labels": [labels[i] for i in idx_list],
+            "pattern_types": [metadata[i]["category"] for i in idx_list],
+            "metadata": [metadata[i] for i in idx_list]
+        }
+
+    return result
+
