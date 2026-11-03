@@ -613,3 +613,136 @@ export interface Phase423AuditManifest {
   experiments: Record<string, Phase423ExperimentResult>;
 }
 
+export interface ClusterAwareConfidenceIntervals {
+  accuracy: MetricConfidenceInterval;
+  precision: MetricConfidenceInterval;
+  recall: MetricConfidenceInterval;
+  macro_f1: MetricConfidenceInterval;
+  false_strong_rate: MetricConfidenceInterval;
+  pr_auc: MetricConfidenceInterval;
+  roc_auc: MetricConfidenceInterval;
+  methodology: {
+    technique: string;
+    requested_resamples: number;
+    valid_resamples: number;
+    skipped_single_class_resamples: number;
+    unique_cluster_count?: number;
+    total_candidates?: number;
+    seed: number;
+    threshold_used: number;
+    threshold_policy: string;
+    confidence_level: number;
+    clustering_variable?: string;
+    insufficient_clusters?: boolean;
+    cluster_aware_warning?: string;
+    note: string;
+  };
+}
+
+export interface FactorialSplitAudit {
+  sample_count: number;
+  positive_count: number;
+  negative_count: number;
+  max_positional_divergence: number;
+  positional_parity_verified: boolean;
+  template_distribution_pos: Record<string, number>;
+  template_distribution_neg: Record<string, number>;
+}
+
+export interface FactorialMatchedAudit {
+  factorial_matching_verified: boolean;
+  split_audits: {
+    train: FactorialSplitAudit;
+    val: FactorialSplitAudit;
+    test: FactorialSplitAudit;
+  };
+  isolation: {
+    lexical_roots_train_count: number;
+    lexical_roots_val_count: number;
+    lexical_roots_test_count: number;
+    pseudo_words_train_count: number;
+    pseudo_words_val_count: number;
+    pseudo_words_test_count: number;
+    lexical_roots_disjoint: boolean;
+    pseudo_words_disjoint: boolean;
+    exact_duplicates_zero: boolean;
+    normalized_duplicates_zero: boolean;
+  };
+}
+
+export interface ResidualSequenceGroupProfile {
+  candidate_count: number;
+  unigram_entropy: number;
+  top_unigrams: string[];
+  bigram_entropy: number;
+  top_bigrams: string[];
+  trigram_entropy: number;
+  top_trigrams: string[];
+  positional_distribution: PositionalClassDistribution[];
+  transition_matrix_4x4: number[][];
+}
+
+export interface ResidualSequenceAudit {
+  groups: Record<string, ResidualSequenceGroupProfile>;
+  pairwise_divergences: Record<string, {
+    jensen_shannon_divergence: number;
+    cosine_similarity: number;
+  }>;
+  stem_overlaps: Record<string, {
+    overlap_count: number;
+    overlap_rate: number;
+    isolated: boolean;
+  }>;
+  matching_verification: {
+    all_length_14: boolean;
+    all_composition_8L_2U_2D_2S: boolean;
+  };
+}
+
+export interface Phase424AuditManifest {
+  schema_version: 'predict_ps_phase4_2_4_v1';
+  phase: string;
+  generated_at: string;
+  reproducibility: {
+    deterministic_seed: number;
+    system_platform: string;
+    python_version: string;
+    scikit_learn_version: string;
+    numpy_version: string;
+    scipy_version: string;
+    zero_network_egress_guarantee: boolean;
+    zero_raw_password_export_guarantee: boolean;
+    inr_zero_cost_guarantee: boolean;
+  };
+  cluster_aware_bootstrap_summary: {
+    technique: string;
+    requested_resamples: number;
+    cluster_aware_justification: string;
+    comparison_table: Record<string, {
+      candidate_level_acc_95_ci: [number, number];
+      cluster_aware_acc_95_ci: [number, number];
+      candidate_level_f1_95_ci: [number, number];
+      cluster_aware_f1_95_ci: [number, number];
+    }>;
+  };
+  threshold_robustness_audit: Record<string, {
+    tau_val: number;
+    test_accuracy: number;
+    test_macro_f1: number;
+    test_fsr: number;
+    test_ppr: number;
+    roc_auc: number;
+    regime: string;
+  }>;
+  factorial_matched_audit: FactorialMatchedAudit;
+  residual_sequence_audit: ResidualSequenceAudit;
+  experiments: Record<string, any>;
+  scientific_interpretation: {
+    core_finding: string;
+    residual_sequence_divergence: string;
+    cluster_aware_variance: string;
+    research_gate_recommendation: string;
+  };
+}
+
+

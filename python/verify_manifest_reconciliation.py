@@ -24,7 +24,8 @@ MANIFEST_PAIRS = [
     ("python/phase4_baseline_metrics.json", "src/data/phase4_baseline_metrics.json"),
     ("python/phase4_1_experiments_manifest.json", "src/data/phase4_1_experiments_manifest.json"),
     ("python/phase4_2_generalization_manifest.json", "src/data/phase4_2_generalization_manifest.json"),
-    ("python/phase4_2_3_audit_manifest.json", "src/data/phase4_2_3_audit_manifest.json")
+    ("python/phase4_2_3_audit_manifest.json", "src/data/phase4_2_3_audit_manifest.json"),
+    ("python/phase4_2_4_audit_manifest.json", "src/data/phase4_2_4_audit_manifest.json")
 ]
 
 
@@ -205,10 +206,120 @@ def verify_privacy_and_zero_passwords() -> bool:
     return True
 
 
+def verify_phase4_2_4_audit_manifest() -> bool:
+    print("\n[Check 7/10] Verifying Phase 4.2.4 Manifest Schema & Structure...")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    manifest_path = os.path.join(base_dir, "python/phase4_2_4_audit_manifest.json")
+
+    with open(manifest_path, "r", encoding="utf-8") as f:
+        manifest = json.load(f)
+
+    assert manifest.get("schema_version") == "predict_ps_phase4_2_4_v1", f"Invalid schema_version: {manifest.get('schema_version')}"
+    assert "Phase 4.2.4" in manifest.get("phase", ""), f"Invalid phase description: {manifest.get('phase')}"
+    assert "reproducibility" in manifest
+    assert "factorial_matched_audit" in manifest
+    assert "residual_sequence_audit" in manifest
+    assert "cluster_aware_bootstrap_summary" in manifest
+    assert "threshold_robustness_audit" in manifest
+    assert "experiments" in manifest
+
+    experiments = manifest["experiments"]
+    assert "exp_g11_factorial_matched_control" in experiments, "Missing exp_g11 in Phase 4.2.4 manifest"
+    assert "exp_g12_residual_sequence_artefact_audit" in experiments, "Missing exp_g12 in Phase 4.2.4 manifest"
+
+    print("  OK: Schema version predict_ps_phase4_2_4_v1 and core sections verified.")
+    return True
+
+
+def verify_factorial_matched_control() -> bool:
+    print("\n[Check 8/10] Verifying Factorial Matched-Control Audit (Exp G11)...")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    manifest_path = os.path.join(base_dir, "python/phase4_2_4_audit_manifest.json")
+
+    with open(manifest_path, "r", encoding="utf-8") as f:
+        manifest = json.load(f)
+
+    fma = manifest.get("factorial_matched_audit", {})
+    assert fma.get("factorial_matching_verified") is True, "Factorial matching was not verified!"
+
+    split_audits = fma.get("split_audits", {})
+    assert "train" in split_audits and "test" in split_audits
+    assert split_audits["test"]["max_positional_divergence"] <= 0.05, "Test positional divergence exceeded 0.05!"
+
+    isolation = fma.get("isolation", {})
+    assert isolation.get("lexical_roots_disjoint") is True, "Lexical roots are not disjoint across splits!"
+    assert isolation.get("pseudo_words_disjoint") is True, "Pseudo words are not disjoint across splits!"
+    assert isolation.get("exact_duplicates_zero") is True, "Exact duplicates detected across splits!"
+    assert isolation.get("normalized_duplicates_zero") is True, "Normalized duplicates detected across splits!"
+
+    g11 = manifest["experiments"]["exp_g11_factorial_matched_control"]
+    sub_exps = g11.get("sub_experiments", {})
+    diag = sub_exps.get("exp_g11e_diagnostic_controls", {})
+    pos_model = diag.get("position_only", {})
+    assert pos_model.get("roc_auc") == 0.5, f"Position-only ROC-AUC should be 0.50 under matched geometry, got {pos_model.get('roc_auc')}"
+    assert pos_model.get("accuracy") == 0.5, f"Position-only accuracy should be 0.50, got {pos_model.get('accuracy')}"
+
+    print(f"  OK: Factorial matching verified (Positional divergence in test = {split_audits['test']['max_positional_divergence']:.4f})")
+    print(f"  OK: Cross-split duplicate freedom verified (0 exact, 0 normalized duplicates).")
+    print(f"  OK: Position-only diagnostic classifier collapsed to 50% / 0.50 ROC-AUC (zero positional shortcut).")
+    return True
+
+
+def verify_cluster_aware_bootstrap() -> bool:
+    print("\n[Check 9/10] Verifying Cluster-Aware Statistical Bootstrap Validation...")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    manifest_path = os.path.join(base_dir, "python/phase4_2_4_audit_manifest.json")
+
+    with open(manifest_path, "r", encoding="utf-8") as f:
+        manifest = json.load(f)
+
+    cbs = manifest.get("cluster_aware_bootstrap_summary", {})
+    assert cbs.get("requested_resamples") == 1000, "Expected 1,000 bootstrap resamples"
+    comparison = cbs.get("comparison_table", {}).get("exp_g11_factorial_matched", {})
+
+    cand_ci = comparison.get("candidate_level_acc_95_ci")
+    clust_ci = comparison.get("cluster_aware_acc_95_ci")
+    assert cand_ci and clust_ci, "Missing G11 comparison in cluster_aware_bootstrap_summary"
+
+    cand_width = cand_ci[1] - cand_ci[0]
+    clust_width = clust_ci[1] - clust_ci[0]
+    print(f"  Candidate-level 95% CI: [{cand_ci[0]}, {cand_ci[1]}] (width: {cand_width:.4f})")
+    print(f"  Cluster-aware   95% CI: [{clust_ci[0]}, {clust_ci[1]}] (width: {clust_width:.4f})")
+    assert clust_width >= cand_width * 0.9, "Cluster-aware CI should reflect cluster variance and not be artificially narrow"
+
+    print("  OK: Cluster-aware bootstrap intervals verified.")
+    return True
+
+
+def verify_residual_sequence_audit() -> bool:
+    print("\n[Check 10/10] Verifying Residual Sequence-Artefact Audit (Exp G12)...")
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    manifest_path = os.path.join(base_dir, "python/phase4_2_4_audit_manifest.json")
+
+    with open(manifest_path, "r", encoding="utf-8") as f:
+        manifest = json.load(f)
+
+    rsa = manifest.get("residual_sequence_audit", {})
+    assert "groups" in rsa and "pairwise_divergences" in rsa
+    assert len(rsa["groups"]) == 4, f"Expected 4 generator groups, got {len(rsa['groups'])}"
+
+    matching = rsa.get("matching_verification", {})
+    assert matching.get("all_length_14") is True, "All candidates must be length 14"
+    assert matching.get("all_composition_8L_2U_2D_2S") is True, "All candidates must be 8L/2U/2D/2S"
+
+    for gname, profile in rsa["groups"].items():
+        assert "unigram_entropy" in profile and "bigram_entropy" in profile and "trigram_entropy" in profile
+        assert len(profile["positional_distribution"]) == 14
+        assert len(profile["transition_matrix_4x4"]) == 4
+
+    print("  OK: 4-way generator sequence profiles verified with length-14 and 8L/2U/2D/2S matching.")
+    return True
+
+
 def main():
-    print("=" * 80)
-    print("PREDICT-PS Phase 4.2.3: Automated Manifest Reconciliation & Integrity Gate")
-    print("=" * 80)
+    print("=" * 84)
+    print("PREDICT-PS Phase 4.2.4: Automated Manifest Reconciliation & Integrity Gate")
+    print("=" * 84)
 
     try:
         verify_manifest_synchronization()
@@ -217,11 +328,15 @@ def main():
         verify_degenerate_regimes_and_robustness()
         verify_generator_artefact_audits()
         verify_privacy_and_zero_passwords()
+        verify_phase4_2_4_audit_manifest()
+        verify_factorial_matched_control()
+        verify_cluster_aware_bootstrap()
+        verify_residual_sequence_audit()
 
-        print("\n" + "=" * 80)
-        print("ALL 6 RECONCILIATION & INTEGRITY CHECKS PASSED SUCCESSFULLY.")
-        print("Canonical Phase 4.2.3 manifests are fully synchronized, audited, and valid.")
-        print("=" * 80)
+        print("\n" + "=" * 84)
+        print("ALL 10 RECONCILIATION & INTEGRITY CHECKS PASSED SUCCESSFULLY.")
+        print("Canonical Phase 4.2.4 manifests are fully synchronized, audited, and valid.")
+        print("=" * 84)
         sys.exit(0)
     except AssertionError as e:
         print(f"\n[RECONCILIATION ERROR] {e}", file=sys.stderr)
@@ -233,3 +348,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

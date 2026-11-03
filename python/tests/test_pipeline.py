@@ -876,8 +876,215 @@ class TestPredictPSPhase41ResearchIntegrity(unittest.TestCase):
             res = subprocess.run([sys.executable, rec_script], capture_output=True, text=True)
             self.assertEqual(res.returncode, 0, f"Reconciliation validator failed:\n{res.stderr}")
 
+    def test_46_factorial_matched_control_dataset(self):
+        """
+        Phase 4.2.4 Track 1:
+        Verifies that generate_factorial_matched_control_dataset produces exact length 14,
+        8L/2U/2D/2S matching, 0 cross-split duplicates, and disjoint lexical/pseudo-word roots.
+        """
+        from dataset_generator import generate_factorial_matched_control_dataset
+        from dataset_diagnostics import audit_factorial_matched_control
+
+        data = generate_factorial_matched_control_dataset(n_samples=200, seed=42)
+        audit = audit_factorial_matched_control(data["splits"])
+
+        self.assertTrue(audit["factorial_matching_verified"])
+        self.assertTrue(audit["isolation"]["lexical_roots_disjoint"])
+        self.assertTrue(audit["isolation"]["pseudo_words_disjoint"])
+        self.assertTrue(audit["isolation"]["exact_duplicates_zero"])
+        self.assertTrue(audit["isolation"]["normalized_duplicates_zero"])
+
+        # Check all candidates match composition exactly
+        for sname in ["train", "val", "test"]:
+            for c in data["splits"][sname]["candidates"]:
+                self.assertEqual(len(c), 14)
+                self.assertEqual(sum(1 for ch in c if ch.islower()), 8)
+                self.assertEqual(sum(1 for ch in c if ch.isupper()), 2)
+                self.assertEqual(sum(1 for ch in c if ch.isdigit()), 2)
+
+    def test_47_factorial_positional_parity(self):
+        """
+        Phase 4.2.4 Track 1:
+        Verifies that positive and negative classes under factorial matched design
+        exhibit positional divergence <= 0.05 across all positions.
+        """
+        from dataset_generator import generate_factorial_matched_control_dataset
+        from dataset_diagnostics import audit_factorial_matched_control
+
+        data = generate_factorial_matched_control_dataset(n_samples=400, seed=42)
+        audit = audit_factorial_matched_control(data["splits"])
+        for sname in ["train", "val", "test"]:
+            sa = audit["split_audits"][sname]
+            self.assertTrue(sa["positional_parity_verified"])
+            self.assertLessEqual(sa["max_positional_divergence"], 0.05)
+
+    def test_48_position_only_diagnostic_collapse(self):
+        """
+        Phase 4.2.4 Track 1:
+        Formally proves that when positive and negative candidates are generated
+        under identical template geometries, a position-only classifier collapses
+        to 50% accuracy (ROC-AUC ~ 0.50), proving zero positional shortcut learning.
+        """
+        from dataset_generator import generate_factorial_matched_control_dataset
+        from model_pipeline import PositionOnlyDiagnosticModel, evaluate_predictions
+
+        data = generate_factorial_matched_control_dataset(n_samples=200, seed=42)
+        pos_model = PositionOnlyDiagnosticModel(target_length=14, random_state=42)
+        pos_model.fit(data["splits"]["train"]["candidates"], data["splits"]["train"]["labels"])
+
+        test_prob = pos_model.predict_proba(data["splits"]["test"]["candidates"])
+        test_pred = (test_prob >= 0.5).astype(int)
+        ev = evaluate_predictions(data["splits"]["test"]["labels"], test_pred, test_prob, threshold=0.5)
+
+        self.assertAlmostEqual(ev["roc_auc"], 0.50, delta=0.05)
+        self.assertAlmostEqual(ev["accuracy"], 0.50, delta=0.05)
+
+    def test_49_ngram_without_lexical_diagnostic(self):
+        """
+        Phase 4.2.4 Track 2:
+        Tests NgramWithoutLexicalDiagnosticModel which abstracts characters into structural
+        tokens ('l', 'u', 'd', 's') to evaluate grammatical structure without lexical semantics.
+        """
+        from model_pipeline import NgramWithoutLexicalDiagnosticModel
+
+        cands = ["Aa1!pass12@#word", "Bb2$word34%^pass", "12!@abCDefGHij", "34#$klMNoPQRst"]
+        lbls = [1, 1, 0, 0]
+        model = NgramWithoutLexicalDiagnosticModel(ngram_range=(2, 3), random_state=42)
+        t_ms = model.fit(cands, lbls)
+        self.assertTrue(model.is_fitted)
+        self.assertGreater(t_ms, 0.0)
+
+        probas = model.predict_proba(cands)
+        self.assertEqual(len(probas), 4)
+        for p in probas:
+            self.assertGreaterEqual(p, 0.0)
+            self.assertLessEqual(p, 1.0)
+
+    def test_50_cluster_aware_bootstrap_confidence_intervals(self):
+        """
+        Phase 4.2.4 Track 3:
+        Verifies that compute_cluster_aware_bootstrap_confidence_intervals groups resamples
+        by cluster_id, propagates fixed threshold, and produces valid 95% CIs.
+        """
+        from model_pipeline import compute_cluster_aware_bootstrap_confidence_intervals
+
+        y_true = [1, 1, 1, 1, 0, 0, 0, 0] * 5
+        y_prob = np.array([0.9, 0.85, 0.8, 0.75, 0.2, 0.15, 0.1, 0.05] * 5)
+        cluster_ids = [f"clust_{i % 10}" for i in range(len(y_true))]
+
+        ci = compute_cluster_aware_bootstrap_confidence_intervals(
+            y_true, y_prob, cluster_ids, threshold=0.5, n_bootstraps=100, seed=42
+        )
+
+        self.assertIn("accuracy", ci)
+        self.assertIn("macro_f1", ci)
+        self.assertIn("methodology", ci)
+        self.assertEqual(ci["methodology"]["technique"], "Cluster-aware (grouped) non-parametric empirical percentile bootstrap")
+        self.assertEqual(ci["methodology"]["unique_cluster_count"], 10)
+        self.assertFalse(ci["methodology"]["insufficient_clusters"])
+
+        acc = ci["accuracy"]
+        self.assertLessEqual(acc["lower_95"], acc["upper_95"])
+        self.assertGreaterEqual(acc["mean"], 0.8)
+
+    def test_51_cluster_aware_insufficient_clusters_handling(self):
+        """
+        Phase 4.2.4 Track 3:
+        Verifies that when fewer than min_clusters exist, cluster-aware bootstrap
+        emits an explicit notification and falls back gracefully.
+        """
+        from model_pipeline import compute_cluster_aware_bootstrap_confidence_intervals
+
+        y_true = [1, 1, 0, 0]
+        y_prob = np.array([0.9, 0.8, 0.2, 0.1])
+        cluster_ids = ["clust_A", "clust_A", "clust_B", "clust_B"]  # Only 2 clusters
+
+        ci = compute_cluster_aware_bootstrap_confidence_intervals(
+            y_true, y_prob, cluster_ids, threshold=0.5, n_bootstraps=50, seed=42, min_clusters=8
+        )
+
+        self.assertTrue(ci["methodology"]["insufficient_clusters"])
+        self.assertIn("Insufficient independent clusters", ci["methodology"]["cluster_aware_warning"])
+
+    def test_52_g12_multi_generator_sequence_artefacts(self):
+        """
+        Phase 4.2.4 Track 2:
+        Verifies that generate_g12_multi_generator_audit_dataset and audit_g12_sequence_artefacts
+        generate 4 matched groups, calculate unigram/bigram/trigram entropy, and verify 0 stem overlap.
+        """
+        from dataset_generator import generate_g12_multi_generator_audit_dataset, INDEPENDENT_PHONETIC_4_STEMS, WORDS_8_EXPANDED
+        from dataset_diagnostics import audit_g12_sequence_artefacts
+
+        groups = generate_g12_multi_generator_audit_dataset(n_samples_per_group=50, seed=42)
+        self.assertEqual(len(groups), 4)
+        for gname in ["dictionary_positives", "phonetic_positives", "syllabic_negatives", "scrambled_negatives"]:
+            self.assertIn(gname, groups)
+            self.assertEqual(len(groups[gname]), 50)
+
+        audit = audit_g12_sequence_artefacts(groups, positive_stems=INDEPENDENT_PHONETIC_4_STEMS + WORDS_8_EXPANDED)
+        self.assertTrue(audit["matching_verification"]["all_length_14"])
+        self.assertTrue(audit["matching_verification"]["all_composition_8L_2U_2D_2S"])
+
+        # Check Shannon entropy fields exist for each group
+        for gname in groups:
+            prof = audit["groups"][gname]
+            self.assertGreater(prof["unigram_entropy"], 0.0)
+            self.assertGreater(prof["bigram_entropy"], 0.0)
+            self.assertGreater(prof["trigram_entropy"], 0.0)
+
+        # Check pairwise divergences
+        self.assertIn("dictionary_positives__vs__syllabic_negatives", audit["pairwise_divergences"])
+        self.assertIn("dictionary_positives__vs__scrambled_negatives", audit["pairwise_divergences"])
+
+    def test_53_phase4_2_4_manifest_synchronization(self):
+        """
+        Phase 4.2.4 Track 6:
+        Verifies that python/ and src/data/ copies of phase4_2_4_audit_manifest.json
+        exist, match exactly, and adhere to schema predict_ps_phase4_2_4_v1.
+        """
+        p_src = "src/data/phase4_2_4_audit_manifest.json"
+        p_py = "python/phase4_2_4_audit_manifest.json"
+
+        self.assertTrue(os.path.exists(p_src), f"Missing {p_src}")
+        self.assertTrue(os.path.exists(p_py), f"Missing {p_py}")
+
+        with open(p_src, "r", encoding="utf-8") as f1, open(p_py, "r", encoding="utf-8") as f2:
+            m_src = json.load(f1)
+            m_py = json.load(f2)
+
+        self.assertEqual(m_src, m_py)
+        self.assertEqual(m_src["schema_version"], "predict_ps_phase4_2_4_v1")
+        self.assertIn("exp_g11_factorial_matched_control", m_src["experiments"])
+        self.assertIn("exp_g12_residual_sequence_artefact_audit", m_src["experiments"])
+
+    def test_54_phase4_2_4_zero_raw_password_export(self):
+        """
+        Phase 4.2.4 Absolute Constraints:
+        Verifies that phase4_2_4_audit_manifest.json contains zero raw password strings,
+        zero candidate strings, and zero candidate lists.
+        """
+        p_py = "python/phase4_2_4_audit_manifest.json"
+        with open(p_py, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        prohibited = ["candidate_password", "raw_passwords", "password_list", "dragon!@#", "bapomelu"]
+        for p in prohibited:
+            self.assertNotIn(p, content)
+
+    def test_55_full_reconciliation_validator_10_checks(self):
+        """
+        Phase 4.2.4 Track 5:
+        Executes verify_manifest_reconciliation.py and verifies all 10 checks pass cleanly.
+        """
+        rec_script = os.path.join(PARENT_DIR, "verify_manifest_reconciliation.py")
+        import subprocess
+        res = subprocess.run([sys.executable, rec_script], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, f"Reconciliation validator failed:\n{res.stdout}\n{res.stderr}")
+        self.assertIn("ALL 10 RECONCILIATION & INTEGRITY CHECKS PASSED SUCCESSFULLY", res.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

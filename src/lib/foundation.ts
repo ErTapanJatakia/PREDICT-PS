@@ -1402,4 +1402,92 @@ export function validatePhase423AuditManifestSchema(payload: unknown): {
   };
 }
 
+/**
+ * Validates Phase 4.2.4 Factorial Matched-Control, Residual Sequence Artefact,
+ * and Cluster-Aware Statistical Validation manifest.
+ */
+export function validatePhase424AuditManifestSchema(payload: unknown): {
+  valid: boolean;
+  errors: string[];
+} {
+  const errors: string[] = [];
+
+  if (!payload || typeof payload !== 'object') {
+    return { valid: false, errors: ['Manifest payload must be a non-null object.'] };
+  }
+
+  const obj = payload as Record<string, unknown>;
+
+  if (obj.schema_version !== 'predict_ps_phase4_2_4_v1') {
+    errors.push(`Invalid schema_version: expected "predict_ps_phase4_2_4_v1", got "${obj.schema_version}".`);
+  }
+
+  if (!obj.reproducibility || typeof obj.reproducibility !== 'object') {
+    errors.push('Missing "reproducibility" object.');
+  }
+
+  if (!obj.cluster_aware_bootstrap_summary || typeof obj.cluster_aware_bootstrap_summary !== 'object') {
+    errors.push('Missing "cluster_aware_bootstrap_summary" object.');
+  }
+
+  if (!obj.factorial_matched_audit || typeof obj.factorial_matched_audit !== 'object') {
+    errors.push('Missing "factorial_matched_audit" object.');
+  } else {
+    const fma = obj.factorial_matched_audit as Record<string, unknown>;
+    if (fma.factorial_matching_verified !== true) {
+      errors.push('factorial_matched_audit.factorial_matching_verified must be true.');
+    }
+  }
+
+  if (!obj.residual_sequence_audit || typeof obj.residual_sequence_audit !== 'object') {
+    errors.push('Missing "residual_sequence_audit" object.');
+  }
+
+  if (!obj.experiments || typeof obj.experiments !== 'object') {
+    errors.push('Missing "experiments" object.');
+  } else {
+    const exps = obj.experiments as Record<string, unknown>;
+    const hasG1 = !!(exps['exp_g1_dual_control'] || exps['exp_g1_random_split_baseline']);
+    if (!hasG1) errors.push('Missing experiment "exp_g1_dual_control" in Phase 4.2.4 manifest.');
+
+    const hasG9 = !!exps['exp_g9_combined_lexical_template_isolation'];
+    if (!hasG9) errors.push('Missing experiment "exp_g9_combined_lexical_template_isolation" in Phase 4.2.4 manifest.');
+
+    const hasG10 = !!(exps['exp_g10_independent_v2b_syllabic_holdout'] || exps['exp_g10_independent_v2b_syllabic_negatives']);
+    if (!hasG10) errors.push('Missing experiment "exp_g10_independent_v2b_syllabic_holdout" in Phase 4.2.4 manifest.');
+
+    const hasG11 = !!exps['exp_g11_factorial_matched_control'];
+    if (!hasG11) errors.push('Missing experiment "exp_g11_factorial_matched_control" in Phase 4.2.4 manifest.');
+
+    const hasG12 = !!exps['exp_g12_residual_sequence_artefact_audit'];
+    if (!hasG12) errors.push('Missing experiment "exp_g12_residual_sequence_artefact_audit" in Phase 4.2.4 manifest.');
+  }
+
+  // Recursive privacy check
+  function checkForbiddenKeys(current: unknown, path: string) {
+    if (!current || typeof current !== 'object') return;
+    const prohibitedKeys = new Set(['candidates', 'passwords', 'raw_passwords', 'raw_password', 'password_list', 'credentials', 'pwd', 'pwds']);
+    if (Array.isArray(current)) {
+      for (let i = 0; i < current.length; i++) {
+        checkForbiddenKeys(current[i], `${path}[${i}]`);
+      }
+    } else {
+      const rec = current as Record<string, unknown>;
+      for (const k of Object.keys(rec)) {
+        if (prohibitedKeys.has(k.toLowerCase())) {
+          errors.push(`Privacy violation: Prohibited key "${k}" detected at ${path}.${k}`);
+        }
+        checkForbiddenKeys(rec[k], `${path}.${k}`);
+      }
+    }
+  }
+
+  checkForbiddenKeys(obj, 'manifest');
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
 

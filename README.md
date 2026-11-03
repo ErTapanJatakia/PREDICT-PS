@@ -1,6 +1,6 @@
 # PREDICT-PS: Password Predictability Research Workbench
 
-> **Phase 4.2.3: Combined Lexical–Template Generalization, Threshold Robustness & Statistical Reconciliation**  
+> **Phase 4.2.4: Factorial Matched-Control Experiments, Cluster-Aware Statistical Validation & Reproducibility Gate**  
 > *Notice: Research Prototype — Not a security certification. Academic study in progress.*
 
 ---
@@ -14,12 +14,12 @@ This is an **empirical hypothesis to test**, not an established result or claim 
 
 Phase 4 implemented the character-level TF-IDF n-gram (2–5) + Logistic Regression statistical machine-learning baseline.
 
-**Phase 4.2.3 (Combined Lexical–Template Generalization, Threshold Robustness & Statistical Reconciliation)** completes the final scientific integrity audit before Phase 5 feature fusion:
-1. **Combined Lexical and Template Isolation (Exp G9)**: Simultaneously isolates dictionary root words ($W_{\text{train}} \cap W_{\text{val}} = \emptyset, W_{\text{train}} \cap W_{\text{test}} = \emptyset, W_{\text{val}} \cap W_{\text{test}} = \emptyset$; 206 train words, 44 val words, 44 test words; 0 overlap) AND positive template families (Train: `PrefixPadded` + `SuffixPadded`; Val: `WordSymbolsSuffix`; Test: `PrefixSymbols`), strictly matched to 14 chars (8L/2U/2D/2S).
-2. **Independent Generator V2b & Syllabic Pseudo-Word Negatives (Exp G10)**: Investigates sequence artefacts by replacing uniform random character scrambles with pseudo-phonetic consonant-vowel syllabic clusters (`bapomilu`, `zenulabi`), matching length and character composition with **0.00% stem overlap**.
-3. **Threshold Robustness & Degenerate Decision Regime Analysis**: Comprehensive threshold sensitivity sweeps ($\tau \in [0.05, 0.95]$ in 19 steps) detailing validation-selected threshold ($\tau_{\text{val}}$), predicted positive rate ($\text{PPR} = (\text{TP} + \text{FP}) / N_{\text{total}}$), confusion matrix, sensitivity, specificity, and macro-F1. Diagnoses degenerate all-negative regimes ($\text{PPR} = 0.0\%$, Sensitivity = 0.0%, Specificity = 100.0%, FSR = 100.0%) where nominal 50.0% accuracy on balanced test data reflects null decision boundary collapse, **NOT random guessing**.
-4. **Sequence Transition Entropy Parity**: Jensen-Shannon divergence between positive and negative character-class transitions drops from 0.1395 (uniform scramble) to 0.0822 (syllabic pseudo-words), closing the class-transition entropy gap by 41% while maintaining 0.00% stem overlap with the positive root dictionary.
-5. **Automated Manifest Reconciliation Gate**: Automated verification tool (`python/verify_manifest_reconciliation.py`) enforcing 6 invariant checks across experiment IDs, sample counts, 1,000 bootstrap resamples at fixed validation thresholds, bit-for-bit manifest mirroring between `python/` and `src/data/`, and zero raw password leakage.
+**Phase 4.2.4 (Factorial Matched-Control, Cluster-Aware Validation & Reproducibility Gate)** completes the final scientific integrity correction before Phase 5:
+1. **Factorial Matched-Control Redesign (Exp G11)**: Decouples lexical word status from template geometry. Positive candidates (dictionary roots) and negative candidates (pseudo-words) are generated using identical template slots (`PrefixPadded`, `SuffixPadded`, `WordSymbolsSuffix`, `PrefixSymbols`), achieving 100% composition matching (8L/2U/2D/2S), 0.00% stem overlap, and **0.0000 positional divergence** ($P(\text{class at pos } i \mid Y=1) = P(\text{class at pos } i \mid Y=0)$ across all 14 positions). Under this matched geometry, the Position-Only diagnostic model collapses completely to **50.00% accuracy and 0.5000 ROC-AUC** (random guessing), mathematically proving zero positional shortcut. Meanwhile, the character n-gram baseline retains **94.33% accuracy and 0.9880 ROC-AUC**, demonstrating genuine lexical discrimination.
+2. **Cluster-Aware Grouped Bootstrap ($B=1,000$)**: Replaces naive candidate-level resampling with grouped bootstrap over root-word / stem clusters (`cluster_id`). Candidate-level 95% CI for G11 accuracy is $[92.5\%, 96.2\%]$ (width 0.0367); cluster-aware grouped resampling yields $[90.5\%, 97.4\%]$ (width 0.0693, **+86% wider**). This eliminates pseudo-replication bias from repeated roots and reports true statistical uncertainty.
+3. **Residual Sequence-Artefact & Shannon Entropy Audit (Exp G12)**: Measures unigram, bigram, and trigram Shannon entropy across 4 strictly matched candidate groups (14 chars, 8L/2U/2D/2S). Trigram entropy is **11.25 bits** (dictionary roots) vs **10.78 bits** (phonetic roots), **11.82 bits** (syllabic pseudo-words), and **12.51 bits** (uniformly scrambled characters). This reveals the physical linguistic entropy gradient underlying n-gram separability without structural shortcuts.
+4. **Combined Lexical and Template Isolation (Exp G9)**: Simultaneously isolates dictionary root words ($W_{\text{train}} \cap W_{\text{val}} = \emptyset, W_{\text{train}} \cap W_{\text{test}} = \emptyset, W_{\text{val}} \cap W_{\text{test}} = \emptyset$) and template families.
+5. **Automated Manifest Reconciliation Gate**: 10-check automated verification suite (`python/verify_manifest_reconciliation.py`) enforcing schema validation (`predict_ps_phase4_2_4_v1`), zero raw password strings, cluster-aware CIs, and bit-for-bit manifest synchronization.
 
 ---
 
@@ -34,7 +34,8 @@ Phase 4 implemented the character-level TF-IDF n-gram (2–5) + Logistic Regress
 | **Phase 4.1**| **Research Integrity & Baseline Validation (Ablation Matrix & Audits)**| **Completed** |
 | **Phase 4.2**| **Statistical Correction, Artifact Synchronization & Integrity Gate** | **Completed** |
 | **Phase 4.2.2**| **Lexical Leakage, Template Generalization & Independent Generator Audit** | **Completed** |
-| **Phase 4.2.3**| **Combined Isolation, Threshold Robustness & Statistical Reconciliation** | **Completed (Active)** |
+| **Phase 4.2.3**| **Combined Isolation, Threshold Robustness & Statistical Reconciliation** | **Completed** |
+| **Phase 4.2.4**| **Factorial Matched-Control, Cluster-Aware Bootstrap & Sequence Audit** | **Completed (Active)** |
 | Phase 5 | Explainable Feature-Fusion Architecture | Planned (Not Implemented) |
 | Phase 6 | Reproducible Evaluation Workbench & Ablation Matrix | Planned (Not Implemented) |
 
@@ -54,6 +55,8 @@ Phase 4 implemented the character-level TF-IDF n-gram (2–5) + Logistic Regress
 | **G8: Position-Aware Held-Out** | Evaluates positional slots on held-out template families | Held-Out Template Families | **50.00%** | **0.3333** | 100.00% | **0.7158** | 0.5000 | [0.333, 0.333] |
 | **G9: Combined Lexical+Template**| Disjoint roots (206/44/44) + held-out PrefixSymbols | Combined Dual Disjoint | **98.50%** | **0.9850** | **0.67%** | **0.9991** | **0.0526** | [0.975, 0.993] |
 | **G10: Syllabic Negatives Transfer**| Matched 14-char candidates with consonant-vowel negatives | Syllabic Negative Generator V2b | **58.70%** | **0.5843** | **49.40%** | **0.6357** | **0.2443** | [0.552, 0.615] |
+| **G11: Factorial Matched-Control**| Decoupled templates, 0.0000 positional divergence, matched 14-char | Factorial Matched Control | **94.33%** | **0.9433** | **2.33%** | **0.9880** | **0.0839** | [0.925, 0.961] (Cluster [0.905, 0.974]) |
+| **G12: Residual Sequence Entropy**| 4-way comparison across dictionary/phonetic/syllabic/scrambled | Sequence Entropy Gradient | **94.30%** | **0.9429** | **0.60%** | **0.9938** | **0.0751** | [0.929, 0.957] |
 
 ---
 

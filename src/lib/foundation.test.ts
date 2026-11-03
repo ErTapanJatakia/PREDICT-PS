@@ -23,6 +23,7 @@ import {
   validatePhase41ManifestSchema,
   validatePhase42GeneralizationManifestSchema,
   validatePhase423AuditManifestSchema,
+  validatePhase424AuditManifestSchema,
   calculatePPR,
   diagnoseClassificationRegime,
   calculateExtendedMetrics,
@@ -548,6 +549,23 @@ test('validatePhase423AuditManifestSchema: validates Phase 4.2.3 manifest and re
   assert.ok(leakRes.errors.some(e => e.includes('Privacy violation')));
 });
 
+test('validatePhase424AuditManifestSchema: validates Phase 4.2.4 manifest and rejects privacy violations', () => {
+  const manifestPath = resolve(process.cwd(), 'src/data/phase4_2_4_audit_manifest.json');
+  const content = JSON.parse(readFileSync(manifestPath, 'utf-8'));
 
+  const validRes = validatePhase424AuditManifestSchema(content);
+  assert.equal(validRes.valid, true, `Errors: ${validRes.errors.join(', ')}`);
 
+  // Verify G11 factorial matching is true
+  assert.equal(content.factorial_matched_audit.factorial_matching_verified, true);
+  assert.equal(content.factorial_matched_audit.split_audits.test.max_positional_divergence, 0.0);
 
+  // Prohibits raw candidate passwords
+  const leakManifest = {
+    ...content,
+    raw_passwords: ['TestPassword!23'],
+  };
+  const leakRes = validatePhase424AuditManifestSchema(leakManifest);
+  assert.equal(leakRes.valid, false);
+  assert.ok(leakRes.errors.some(e => e.includes('Privacy violation')));
+});

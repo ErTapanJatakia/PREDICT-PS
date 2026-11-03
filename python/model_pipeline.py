@@ -290,6 +290,156 @@ class PositionAwareDiagnosticModel:
         return (self.predict_proba(candidates) >= threshold).astype(int)
 
 
+PositionOnlyDiagnosticModel = PositionAwareDiagnosticModel
+
+
+class NgramWithoutLexicalDiagnosticModel:
+    """
+    Diagnostic Control Classifier (Phase 4.2.4):
+    Evaluates n-gram sequence discrimination when lexical identity is abstracted out.
+    Transforms each character into its grammatical character class token:
+    - lowercase [a-z] -> 'l'
+    - uppercase [A-Z] -> 'u'
+    - digit [0-9]     -> 'd'
+    - symbol [other]  -> 's'
+    Fits TF-IDF character n-grams (2-5) over this abstracted skeleton to measure
+    pure structural sequence transition predictability without lexical semantics.
+    """
+
+    def __init__(
+        self,
+        ngram_range: Tuple[int, int] = (2, 5),
+        min_df: int = 2,
+        sublinear_tf: bool = True,
+        C: float = 1.0,
+        max_iter: int = 1000,
+        random_state: int = 42
+    ):
+        self.ngram_range = ngram_range
+        self.min_df = min_df
+        self.sublinear_tf = sublinear_tf
+        self.C = C
+        self.max_iter = max_iter
+        self.random_state = random_state
+
+        self.vectorizer = TfidfVectorizer(
+            analyzer='char',
+            ngram_range=self.ngram_range,
+            min_df=self.min_df,
+            sublinear_tf=self.sublinear_tf
+        )
+        self.classifier = LogisticRegression(
+            C=self.C,
+            max_iter=self.max_iter,
+            random_state=self.random_state,
+            solver='lbfgs'
+        )
+        self.is_fitted = False
+        self.vocab_size = 0
+
+    @staticmethod
+    def _abstract_skeleton(candidate: str) -> str:
+        symbols = set("!@#$%^&*()_+-=[]{}|;:,.<>?/`~'\"\\")
+        chars = []
+        for ch in candidate:
+            if ch.islower():
+                chars.append('l')
+            elif ch.isupper():
+                chars.append('u')
+            elif ch.isdigit():
+                chars.append('d')
+            elif ch in symbols:
+                chars.append('s')
+            else:
+                chars.append('o')
+        return "".join(chars)
+
+    def fit(self, train_candidates: List[str], train_labels: List[int]) -> float:
+        start_time = time.perf_counter()
+        abstracted = [self._abstract_skeleton(c) for c in train_candidates]
+        X_train = self.vectorizer.fit_transform(abstracted)
+        self.classifier.fit(X_train, train_labels)
+        train_duration_ms = (time.perf_counter() - start_time) * 1000.0
+        self.is_fitted = True
+        self.vocab_size = len(self.vectorizer.vocabulary_)
+        return train_duration_ms
+
+    def predict_proba(self, candidates: List[str]) -> np.ndarray:
+        if not self.is_fitted:
+            raise RuntimeError("Model is not fitted. Call fit() before predict_proba().")
+        abstracted = [self._abstract_skeleton(c) for c in candidates]
+        X = self.vectorizer.transform(abstracted)
+        return self.classifier.predict_proba(X)[:, 1]
+
+    def predict(self, candidates: List[str], threshold: float = 0.5) -> np.ndarray:
+        probas = self.predict_proba(candidates)
+        return (probas >= threshold).astype(int)
+
+
+class CombinedDiagnosticModel:
+    """
+    Diagnostic Composite Classifier (Phase 4.2.4):
+    Fuses character n-gram TF-IDF features with positional and composition vectors
+    to evaluate whether combining positional patterns with character n-grams
+    yields additional discrimination or merely mirrors the dominant signal.
+    """
+
+    def __init__(
+        self,
+        ngram_range: Tuple[int, int] = (2, 5),
+        target_length: int = 14,
+        C: float = 1.0,
+        max_iter: int = 1000,
+        random_state: int = 42
+    ):
+        self.ngram_range = ngram_range
+        self.target_length = target_length
+        self.C = C
+        self.max_iter = max_iter
+        self.random_state = random_state
+
+        self.vectorizer = TfidfVectorizer(
+            analyzer='char',
+            ngram_range=self.ngram_range,
+            min_df=2,
+            sublinear_tf=True
+        )
+        self.pos_model = PositionAwareDiagnosticModel(target_length=target_length, random_state=random_state)
+        self.classifier = LogisticRegression(
+            C=self.C,
+            max_iter=self.max_iter,
+            random_state=self.random_state,
+            solver='lbfgs'
+        )
+        self.is_fitted = False
+
+    def _assemble_features(self, candidates: List[str], fit_vec: bool = False):
+        from scipy.sparse import hstack, csr_matrix
+        if fit_vec:
+            X_ngram = self.vectorizer.fit_transform(candidates)
+        else:
+            X_ngram = self.vectorizer.transform(candidates)
+        X_pos = csr_matrix(self.pos_model._extract_positional_features(candidates))
+        return hstack([X_ngram, X_pos])
+
+    def fit(self, train_candidates: List[str], train_labels: List[int]) -> float:
+        t0 = time.perf_counter()
+        X = self._assemble_features(train_candidates, fit_vec=True)
+        self.classifier.fit(X, train_labels)
+        self.is_fitted = True
+        return (time.perf_counter() - t0) * 1000.0
+
+    def predict_proba(self, candidates: List[str]) -> np.ndarray:
+        if not self.is_fitted:
+            raise RuntimeError("Model is not fitted. Call fit() before predict_proba().")
+        X = self._assemble_features(candidates, fit_vec=False)
+        return self.classifier.predict_proba(X)[:, 1]
+
+    def predict(self, candidates: List[str], threshold: float = 0.5) -> np.ndarray:
+        return (self.predict_proba(candidates) >= threshold).astype(int)
+
+
+
 def compute_calibration_curve(
     y_true: List[int],
     y_proba: np.ndarray,
@@ -448,6 +598,124 @@ def compute_bootstrap_confidence_intervals(
             "note": "Confidence intervals quantify statistical sampling variance on synthetic test partitions; they do not represent real-world human password population variation."
         }
     }
+
+
+def compute_cluster_aware_bootstrap_confidence_intervals(
+    y_true: List[int],
+    y_proba: np.ndarray,
+    cluster_ids: List[str],
+    threshold: float = 0.5,
+    n_bootstraps: int = 1000,
+    seed: int = 42,
+    min_clusters: int = 8
+) -> Dict[str, Any]:
+    """
+    Phase 4.2.4: Cluster-Aware (Grouped) Non-parametric Empirical Percentile Bootstrap.
+    Resamples whole root-word clusters (cluster_id) with replacement rather than
+    individual candidates. This accounts for intra-cluster correlation across candidates
+    generated from identical dictionary roots or generator stems, avoiding anti-conservative,
+    artificially narrow confidence intervals.
+    Propagates fixed validation threshold across all resamples.
+    """
+    rng = np.random.RandomState(seed)
+    y_true_arr = np.array(y_true)
+    y_proba_arr = np.array(y_proba)
+    cluster_arr = np.array(cluster_ids)
+
+    unique_clusters = np.unique(cluster_arr)
+    num_unique_clusters = len(unique_clusters)
+
+    # Pre-map clusters to candidate indices for fast lookup
+    cluster_to_indices = {cid: np.where(cluster_arr == cid)[0] for cid in unique_clusters}
+
+    accs, precs, recs, f1s, fsrs, pr_aucs, roc_aucs = [], [], [], [], [], [], []
+    skipped_single_class = 0
+
+    insufficient_clusters = bool(num_unique_clusters < min_clusters)
+
+    if insufficient_clusters:
+        candidate_ci = compute_bootstrap_confidence_intervals(
+            y_true, y_proba, threshold=threshold, n_bootstraps=n_bootstraps, seed=seed
+        )
+        candidate_ci["methodology"]["cluster_aware_warning"] = (
+            f"Insufficient independent clusters ({num_unique_clusters} < {min_clusters}). "
+            "Cluster-aware resampling requires multiple clusters; candidate-level bootstrap reported."
+        )
+        candidate_ci["methodology"]["insufficient_clusters"] = True
+        return candidate_ci
+
+    for _ in range(n_bootstraps):
+        sampled_clusters = rng.choice(unique_clusters, size=num_unique_clusters, replace=True)
+        idx = np.concatenate([cluster_to_indices[cid] for cid in sampled_clusters])
+
+        sample_true = y_true_arr[idx]
+        sample_proba = y_proba_arr[idx]
+
+        n_pos = int(np.sum(sample_true == 1))
+        n_neg = len(sample_true) - n_pos
+        if n_pos == 0 or n_neg == 0:
+            skipped_single_class += 1
+            continue
+
+        sample_pred = (sample_proba >= threshold).astype(int)
+
+        tp = int(np.sum((sample_true == 1) & (sample_pred == 1)))
+        tn = int(np.sum((sample_true == 0) & (sample_pred == 0)))
+        fp = int(np.sum((sample_true == 0) & (sample_pred == 1)))
+        fn = int(np.sum((sample_true == 1) & (sample_pred == 0)))
+        tot = len(sample_true)
+
+        accs.append((tp + tn) / tot if tot > 0 else 0.0)
+        precs.append(tp / (tp + fp) if (tp + fp) > 0 else 0.0)
+        recs.append(tp / (tp + fn) if (tp + fn) > 0 else 0.0)
+
+        f1_p = (2 * tp) / (2 * tp + fp + fn) if (2 * tp + fp + fn) > 0 else 0.0
+        f1_n = (2 * tn) / (2 * tn + fp + fn) if (2 * tn + fp + fn) > 0 else 0.0
+        f1s.append((f1_p + f1_n) / 2.0)
+
+        fsr = (fn / (tp + fn)) if (tp + fn) > 0 else 0.0
+        fsrs.append(fsr)
+
+        roc_aucs.append(_fast_roc_auc(sample_true, sample_proba))
+        try:
+            pr_aucs.append(float(average_precision_score(sample_true, sample_proba)))
+        except ValueError:
+            pr_aucs.append(0.5)
+
+    def get_ci(values: List[float]) -> Dict[str, float]:
+        if not values:
+            return {"lower_95": 0.0, "upper_95": 0.0, "mean": 0.0}
+        return {
+            "lower_95": round(float(np.percentile(values, 2.5)), 4),
+            "upper_95": round(float(np.percentile(values, 97.5)), 4),
+            "mean": round(float(np.mean(values)), 4)
+        }
+
+    return {
+        "accuracy": get_ci(accs),
+        "precision": get_ci(precs),
+        "recall": get_ci(recs),
+        "macro_f1": get_ci(f1s),
+        "false_strong_rate": get_ci(fsrs),
+        "pr_auc": get_ci(pr_aucs),
+        "roc_auc": get_ci(roc_aucs),
+        "methodology": {
+            "technique": "Cluster-aware (grouped) non-parametric empirical percentile bootstrap",
+            "requested_resamples": n_bootstraps,
+            "valid_resamples": len(accs),
+            "skipped_single_class_resamples": skipped_single_class,
+            "unique_cluster_count": num_unique_clusters,
+            "total_candidates": len(y_true),
+            "seed": seed,
+            "threshold_used": round(float(threshold), 3),
+            "threshold_policy": "fixed_validation_selected",
+            "confidence_level": 0.95,
+            "clustering_variable": "cluster_id (root word / generator stem)",
+            "insufficient_clusters": False,
+            "note": "Grouped bootstrap resamples clusters of related candidates with replacement to account for intra-cluster correlation and avoid artificially optimistic confidence intervals."
+        }
+    }
+
 
 
 def select_validation_threshold(

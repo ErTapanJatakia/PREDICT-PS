@@ -51,7 +51,7 @@ const TABS: TabItem[] = [
   {
     id: 'experiments',
     label: 'Experiments',
-    badge: 'Phase 4.2.3 Active',
+    badge: 'Phase 4.2.4 Active',
     badgeColor: 'text-indigo-300 bg-indigo-950/70 border-indigo-800/80',
     icon: GitCompare,
   },
